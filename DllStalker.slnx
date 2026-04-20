@@ -1,0 +1,7 @@
+<Solution>
+  <Configurations>
+    <Platform Name="x64" />
+    <Platform Name="x86" />
+  </Configurations>
+  <Project Path="DllStalker/DllStalker.vcxproj" Id="db7ea68b-ad10-4175-a44b-df9696b94a09" />
+</Solution>
