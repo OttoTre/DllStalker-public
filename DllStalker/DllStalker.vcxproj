@@ -1,6 +1,14 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup Label="ProjectConfigurations">
+    <ProjectConfiguration Include="DebugRelease|Win32">
+      <Configuration>DebugRelease</Configuration>
+      <Platform>Win32</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="DebugRelease|x64">
+      <Configuration>DebugRelease</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
     <ProjectConfiguration Include="Debug|Win32">
       <Configuration>Debug</Configuration>
       <Platform>Win32</Platform>
@@ -24,8 +32,10 @@
     <ProjectGuid>{db7ea68b-ad10-4175-a44b-df9696b94a09}</ProjectGuid>
     <RootNamespace>DllStalker</RootNamespace>
     <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
+    <VcpkgEnableManifest>true</VcpkgEnableManifest>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+  <Import Project="$(VcpkgRoot)scripts\buildsystems\msbuild\vcpkg.props" Condition="'$(VcpkgRoot)' != '' and Exists('$(VcpkgRoot)scripts\buildsystems\msbuild\vcpkg.props')" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="Configuration">
     <ConfigurationType>DynamicLibrary</ConfigurationType>
     <UseDebugLibraries>true</UseDebugLibraries>
@@ -33,6 +43,13 @@
     <CharacterSet>Unicode</CharacterSet>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'" Label="Configuration">
+    <ConfigurationType>DynamicLibrary</ConfigurationType>
+    <UseDebugLibraries>false</UseDebugLibraries>
+    <PlatformToolset>v145</PlatformToolset>
+    <WholeProgramOptimization>true</WholeProgramOptimization>
+    <CharacterSet>Unicode</CharacterSet>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='DebugRelease|Win32'" Label="Configuration">
     <ConfigurationType>DynamicLibrary</ConfigurationType>
     <UseDebugLibraries>false</UseDebugLibraries>
     <PlatformToolset>v145</PlatformToolset>
@@ -52,6 +69,13 @@
     <WholeProgramOptimization>true</WholeProgramOptimization>
     <CharacterSet>MultiByte</CharacterSet>
   </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='DebugRelease|x64'" Label="Configuration">
+    <ConfigurationType>DynamicLibrary</ConfigurationType>
+    <UseDebugLibraries>false</UseDebugLibraries>
+    <PlatformToolset>v145</PlatformToolset>
+    <WholeProgramOptimization>true</WholeProgramOptimization>
+    <CharacterSet>MultiByte</CharacterSet>
+  </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
   <ImportGroup Label="ExtensionSettings">
   </ImportGroup>
@@ -63,20 +87,32 @@
   <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
   </ImportGroup>
+  <ImportGroup Condition="'$(Configuration)|$(Platform)'=='DebugRelease|Win32'" Label="PropertySheets">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
   <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
   </ImportGroup>
   <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
   </ImportGroup>
+  <ImportGroup Condition="'$(Configuration)|$(Platform)'=='DebugRelease|x64'" Label="PropertySheets">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <TargetName>version</TargetName>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='DebugRelease|x64'">
     <TargetName>version</TargetName>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <TargetName>version</TargetName>
   </PropertyGroup>
   <PropertyGroup Label="Vcpkg" Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <VcpkgUseStatic>true</VcpkgUseStatic>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='DebugRelease|x64'" Label="Vcpkg">
     <VcpkgUseStatic>true</VcpkgUseStatic>
   </PropertyGroup>
   <PropertyGroup Label="Vcpkg" Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
@@ -117,6 +153,24 @@
       <EnableUAC>false</EnableUAC>
     </Link>
   </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='DebugRelease|Win32'">
+    <ClCompile>
+      <WarningLevel>Level3</WarningLevel>
+      <FunctionLevelLinking>true</FunctionLevelLinking>
+      <IntrinsicFunctions>true</IntrinsicFunctions>
+      <SDLCheck>true</SDLCheck>
+      <PreprocessorDefinitions>WIN32;NDEBUG;DLLSTALKER_EXPORTS;_WINDOWS;_USRDLL;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <ConformanceMode>true</ConformanceMode>
+      <LanguageStandard>stdcpp20</LanguageStandard>
+      <PrecompiledHeader>Use</PrecompiledHeader>
+      <PrecompiledHeaderFile>pch.h</PrecompiledHeaderFile>
+    </ClCompile>
+    <Link>
+      <SubSystem>Windows</SubSystem>
+      <GenerateDebugInformation>true</GenerateDebugInformation>
+      <EnableUAC>false</EnableUAC>
+    </Link>
+  </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <ClCompile>
       <WarningLevel>Level3</WarningLevel>
@@ -133,6 +187,7 @@
       <SubSystem>Windows</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <EnableUAC>false</EnableUAC>
+      <AdditionalDependencies>d3d11.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
@@ -154,38 +209,189 @@
       <SubSystem>Windows</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <EnableUAC>false</EnableUAC>
+      <AdditionalDependencies>d3d11.lib;%(AdditionalDependencies)</AdditionalDependencies>
+    </Link>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='DebugRelease|x64'">
+    <ClCompile>
+      <WarningLevel>Level3</WarningLevel>
+      <FunctionLevelLinking>true</FunctionLevelLinking>
+      <IntrinsicFunctions>true</IntrinsicFunctions>
+      <SDLCheck>true</SDLCheck>
+      <PreprocessorDefinitions>DEBUGRELEASE;NDEBUG;DLLSTALKER_EXPORTS;_WINDOWS;_USRDLL;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <ConformanceMode>true</ConformanceMode>
+      <LanguageStandard>stdcpp20</LanguageStandard>
+      <PrecompiledHeader>Use</PrecompiledHeader>
+      <PrecompiledHeaderFile>pch.h</PrecompiledHeaderFile>
+      <MultiProcessorCompilation>true</MultiProcessorCompilation>
+      <AdditionalIncludeDirectories>$(ProjectDir)include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <UseStandardPreprocessor>true</UseStandardPreprocessor>
+    </ClCompile>
+    <Link>
+      <SubSystem>Windows</SubSystem>
+      <GenerateDebugInformation>true</GenerateDebugInformation>
+      <EnableUAC>false</EnableUAC>
+      <AdditionalDependencies>d3d11.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClInclude Include="include\framework.h" />
-    <ClInclude Include="include\hooks.h" />
-    <ClInclude Include="include\hooks_definition\dane.h" />
-    <ClInclude Include="include\hooks_definitions.h" />
+    <ClInclude Include="include\gui\config.h" />
+    <ClInclude Include="include\gui\control_panel.h" />
+    <ClInclude Include="include\gui\infra\imgui_context_guard.h" />
+    <ClInclude Include="include\gui\infra\dx11_renderer.h" />
+    <ClInclude Include="include\gui\infra\message_pump.h" />
+    <ClInclude Include="include\gui\infra\search_filter.h" />
+    <ClInclude Include="include\gui\session_state.h" />
+    <ClInclude Include="include\gui\app\app_shell.h" />
+    <ClInclude Include="include\gui\views\error_modals.h" />
+    <ClInclude Include="include\gui\views\image_picker.h" />
+    <ClInclude Include="include\gui\views\class_browser.h" />
+    <ClInclude Include="include\gui\views\inspector_frame.h" />
+    <ClInclude Include="include\gui\views\breadcrumb_bar.h" />
+    <ClInclude Include="include\gui\views\methods_tab.h" />
+    <ClInclude Include="include\gui\views\invoke_args_modal.h" />
+    <ClInclude Include="include\gui\views\fields_tab.h" />
+    <ClInclude Include="include\gui\views\console_tab.h" />
+    <ClInclude Include="include\gui\views\dock\bookmarks_tab.h" />
+    <ClInclude Include="include\gui\views\dock\watcher_tab.h" />
+    <ClInclude Include="include\gui\views\dock\call_logger_tab.h" />
+    <ClInclude Include="include\gui\views\dock\history_tab.h" />
+    <ClInclude Include="include\gui\views\dock\navigation_status_banner.h" />
+    <ClInclude Include="include\gui\views\dock\utilities_dock.h" />
+    <ClInclude Include="include\gui\window.h" />
+    <ClInclude Include="include\services\hook_installer.h" />
+    <ClInclude Include="include\services\call_log_types.h" />
+    <ClInclude Include="include\services\call_log_hooks.h" />
+    <ClInclude Include="include\presets\hook_preset.h" />
     <ClInclude Include="include\pch.h" />
     <ClInclude Include="include\unity_resolver.h">
       <DeploymentContent>true</DeploymentContent>
     </ClInclude>
+    <ClInclude Include="include\engine\unity_exports.h" />
+    <ClInclude Include="include\engine\unity_module.h" />
+    <ClInclude Include="include\engine\image_enumerator.h" />
+    <ClInclude Include="include\engine\reflection.h" />
+    <ClInclude Include="include\engine\runtime_invoke.h" />
     <ClInclude Include="include\unity_dumper.h" />
+    <ClInclude Include="include\dumper\object_identity.h" />
+    <ClInclude Include="include\dumper\class_catalog.h" />
+    <ClInclude Include="include\dumper\method_catalog.h" />
+    <ClInclude Include="include\dumper\field_catalog.h" />
+    <ClInclude Include="include\dumper\collection_view.h" />
+    <ClInclude Include="include\dumper\static_instance_finder.h" />
+    <ClInclude Include="include\dumper\live_object_finder.h" />
+    <ClInclude Include="include\dumper\method_invoker.h" />
+    <ClInclude Include="include\dumper\diagnostics.h" />
+    <ClInclude Include="include\dumper\console_dumper.h" />
+    <ClInclude Include="include\gui\state\image_cache_model.h" />
+    <ClInclude Include="include\gui\state\class_cache_model.h" />
+    <ClInclude Include="include\gui\state\inspector_model.h" />
+    <ClInclude Include="include\gui\state\edit_buffer_store.h" />
+    <ClInclude Include="include\gui\state\walker_controller.h" />
+    <ClInclude Include="include\gui\state\invoke_request_queue.h" />
+    <ClInclude Include="include\gui\state\async_loader_set.h" />
+    <ClInclude Include="include\gui\state\history_steady_time.h" />
+    <ClInclude Include="include\gui\state\history_validation.h" />
+    <ClInclude Include="include\gui\state\field_path_resolver.h" />
+    <ClInclude Include="include\gui\state\field_snapshot_model.h" />
+    <ClInclude Include="include\gui\state\field_watch_model.h" />
+    <ClInclude Include="include\gui\state\call_log_model.h" />
+    <ClInclude Include="include\gui\state\inspector_bookmarks_model.h" />
+    <ClInclude Include="include\gui\state\inspector_history_model.h" />
+    <ClInclude Include="include\gui\state\inspector_history_types.h" />
+    <ClInclude Include="include\gui\state\inspector_navigation_snapshot.h" />
+    <ClInclude Include="include\gui\state\inspector_navigation_feedback.h" />
+    <ClInclude Include="include\types\dumper_types.h" />
+    <ClInclude Include="include\types\memory_guard.h" />
+    <ClInclude Include="include\types\type_classifier.h" />
+    <ClInclude Include="include\types\value_decoder.h" />
+    <ClInclude Include="include\types\value_writer.h" />
+    <ClInclude Include="include\services\main_thread_dispatcher.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\dllmain.cpp" />
-    <ClCompile Include="src\hooks.cpp" />
-    <ClCompile Include="src\hooks_definition\dane.cpp" />
+    <ClCompile Include="src\gui\control_panel.cpp" />
+    <ClCompile Include="src\gui\infra\dx11_renderer.cpp" />
+    <ClCompile Include="src\gui\infra\message_pump.cpp" />
+    <ClCompile Include="src\gui\infra\search_filter.cpp" />
+    <ClCompile Include="src\gui\session_state.cpp" />
+    <ClCompile Include="src\gui\app\app_shell.cpp" />
+    <ClCompile Include="src\gui\views\error_modals.cpp" />
+    <ClCompile Include="src\gui\views\image_picker.cpp" />
+    <ClCompile Include="src\gui\views\class_browser.cpp" />
+    <ClCompile Include="src\gui\views\inspector_frame.cpp" />
+    <ClCompile Include="src\gui\views\breadcrumb_bar.cpp" />
+    <ClCompile Include="src\gui\views\methods_tab.cpp" />
+    <ClCompile Include="src\gui\views\invoke_args_modal.cpp" />
+    <ClCompile Include="src\gui\views\fields_tab.cpp" />
+    <ClCompile Include="src\gui\views\console_tab.cpp" />
+    <ClCompile Include="src\gui\views\dock\bookmarks_tab.cpp" />
+    <ClCompile Include="src\gui\views\dock\history_tab.cpp" />
+    <ClCompile Include="src\gui\views\dock\watcher_tab.cpp" />
+    <ClCompile Include="src\gui\views\dock\call_logger_tab.cpp" />
+    <ClCompile Include="src\gui\views\dock\navigation_status_banner.cpp" />
+    <ClCompile Include="src\gui\views\dock\utilities_dock.cpp" />
+    <ClCompile Include="src\gui\window.cpp" />
+    <ClCompile Include="src\services\hook_installer.cpp" />
+    <ClCompile Include="src\services\call_log_types.cpp" />
+    <ClCompile Include="src\services\call_log_hooks.cpp" />
+    <ClCompile Include="src\presets\preset_registry.cpp" />
     <ClCompile Include="src\unity_resolver.cpp" />
+    <ClCompile Include="src\engine\unity_module.cpp" />
+    <ClCompile Include="src\engine\image_enumerator.cpp" />
+    <ClCompile Include="src\engine\reflection.cpp" />
+    <ClCompile Include="src\engine\runtime_invoke.cpp" />
+    <ClCompile Include="src\dumper\object_identity.cpp" />
+    <ClCompile Include="src\dumper\class_catalog.cpp" />
+    <ClCompile Include="src\dumper\method_catalog.cpp" />
+    <ClCompile Include="src\dumper\field_catalog.cpp" />
+    <ClCompile Include="src\dumper\collection_view.cpp" />
+    <ClCompile Include="src\dumper\static_instance_finder.cpp" />
+    <ClCompile Include="src\dumper\live_object_finder.cpp" />
+    <ClCompile Include="src\dumper\method_invoker.cpp" />
+    <ClCompile Include="src\dumper\diagnostics.cpp" />
+    <ClCompile Include="src\dumper\console_dumper.cpp" />
+    <ClCompile Include="src\gui\state\image_cache_model.cpp" />
+    <ClCompile Include="src\gui\state\class_cache_model.cpp" />
+    <ClCompile Include="src\gui\state\inspector_model.cpp" />
+    <ClCompile Include="src\gui\state\async_loader_set.cpp" />
+    <ClCompile Include="src\gui\state\walker_controller.cpp" />
+    <ClCompile Include="src\gui\state\invoke_request_queue.cpp" />
+    <ClCompile Include="src\gui\state\history_validation.cpp" />
+    <ClCompile Include="src\gui\state\field_path_resolver.cpp" />
+    <ClCompile Include="src\gui\state\field_snapshot_model.cpp" />
+    <ClCompile Include="src\gui\state\field_watch_model.cpp" />
+    <ClCompile Include="src\gui\state\call_log_model.cpp" />
+    <ClCompile Include="src\gui\state\inspector_bookmarks_model.cpp" />
+    <ClCompile Include="src\gui\state\inspector_history_model.cpp" />
+    <ClCompile Include="src\gui\state\inspector_history_restore.cpp" />
+    <ClCompile Include="src\gui\state\inspector_navigation_feedback.cpp" />
+    <ClCompile Include="src\gui\state\image_selection.cpp" />
     <ClCompile Include="src\pch.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Create</PrecompiledHeader>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">Create</PrecompiledHeader>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">Create</PrecompiledHeader>
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='DebugRelease|Win32'">Create</PrecompiledHeader>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Create</PrecompiledHeader>
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='DebugRelease|x64'">Create</PrecompiledHeader>
     </ClCompile>
     <ClCompile Include="src\unity_dumper.cpp" />
+    <ClCompile Include="src\types\memory_guard.cpp" />
+    <ClCompile Include="src\types\type_classifier.cpp" />
+    <ClCompile Include="src\types\value_decoder.cpp" />
+    <ClCompile Include="src\types\value_writer.cpp" />
+    <ClCompile Include="src\services\main_thread_dispatcher.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <None Include="CONDITIONAL_INCLUDE_OPTIMIZATION.md" />
-    <None Include="PROJECT_CONFIG_REFERENCE.md" />
-    <None Include="REFACTORING_SUMMARY.md" />
+    <None Include="docs\Feature-Plan-3-Complete.md" />
+    <None Include="docs\Feature-Plan-4.md" />
+    <None Include="docs\overview\AI-Agent-Context.md" />
+    <None Include="docs\overview\Architectural-Refactor-Summary.md" />
+    <None Include="docs\overview\Projekt_Onboarding.md" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
+    <Import Project="$(VcpkgRoot)scripts\buildsystems\msbuild\vcpkg.targets" Condition="'$(VcpkgRoot)' != '' and Exists('$(VcpkgRoot)scripts\buildsystems\msbuild\vcpkg.targets')" />
   </ImportGroup>
 </Project>

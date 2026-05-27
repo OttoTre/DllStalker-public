@@ -1,9 +1,11 @@
 ﻿#include "pch.h"
-#include "hooks.h"
+
+#include "services/hook_installer.h"
 #include "unity_resolver.h"
 
 #ifdef ENABLE_DUMPER
-#include "unity_dumper.h"
+#include "gui/control_panel.h"
+#include "services/main_thread_dispatcher.h"
 #endif
 
 // Forwarding exports to the REAL system version.dll
@@ -25,39 +27,37 @@
 #pragma comment(linker, "/export:VerQueryValueA=C:\\Windows\\System32\\version.VerQueryValueA")
 #pragma comment(linker, "/export:VerQueryValueW=C:\\Windows\\System32\\version.VerQueryValueW")
 
-namespace
-{
-constexpr int CHOSEN_OPTION = 99; // Profile selector for different games or configurations. Adjust as needed.
-
-constexpr const char* ResolveTargetAssembly(int option) {
-    switch (option)
-    {
-    // Add your game-specific assembly names here
-    // case 1: return "YourCustomAssemblyName";
-    default: return "Assembly-CSharp";
-    }
-}
-
-constexpr const char* TARGET_ASSEMBLY = ResolveTargetAssembly(CHOSEN_OPTION);
-} // namespace
-
-static DWORD WINAPI MainThread(LPVOID lpParam) {
-    AllocConsole();
-    FILE* f; freopen_s(&f, "CONOUT$", "w", stdout);
+// Post-DllMain bootstrap worker (NOT the process or Unity main thread).
+static DWORD WINAPI DllStalkerBootstrap(LPVOID) {
+#ifdef ENABLE_DUMPER
+    // Tag this thread up front so the dispatcher's runtime_invoke detour
+    // doesn't mis-latch us as the engine main thread. Init() itself does
+    // not call into runtime_invoke, but defensive ordering: we want the
+    // tag set before any code path that could.
+    Engine::Services::MainThreadDispatcher::TagCurrentThreadAsOurs();
+#endif
 
     if (!Engine::Unity.Init())
     {
-        printf("[-] Failed to initialize Unity Resolver.\n");
         return -1;
     }
 
-    void* image = Engine::Unity.FindImage(TARGET_ASSEMBLY);
-    if (!image) {
-        printf("[-] Failed to find target assembly image.\n");
-        return -1;
-    }
+    AllocConsole();
+    FILE* f; freopen_s(&f, "CONOUT$", "w", stdout);
 
-    Hooks::StartHooking(Engine::Unity.hModule, image, CHOSEN_OPTION);
+#ifdef ENABLE_DUMPER
+    // Install the runtime_invoke hook so the Method Invoker can dispatch
+    // managed calls onto the engine's main thread (the first non-DllStalker
+    // thread to reach the detour latches as the main thread). Failure is
+    // non-fatal; the GUI surfaces a "Method Invoker disabled" status and
+    // keeps Run buttons disabled rather than falling back to an unsafe
+    // direct call from the GUI thread.
+    Engine::Services::MainThreadDispatcher::InstallRuntimeInvokeHook();
+#endif
+
+    // Preset selection is a compile-time string baked into hook_installer;
+    // the registry resolves the target assembly image and dispatches.
+    Hooks::StartHooking();
 
     printf("[*] Unity engine initialized successfully.\n");
     return 0;
@@ -66,7 +66,12 @@ static DWORD WINAPI MainThread(LPVOID lpParam) {
 BOOL APIENTRY DllMain(HMODULE hModule, DWORD reason, LPVOID lpReserved) {
     if (reason == DLL_PROCESS_ATTACH) {
         DisableThreadLibraryCalls(hModule);
-        CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE)MainThread, NULL, 0, NULL);
+        CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE)DllStalkerBootstrap, NULL, 0, NULL);
+
+        #ifdef ENABLE_DUMPER
+            // GUI should be created on a dedicated thread.
+            CreateThread(NULL, 0, Gui::CreateControlPanelThread, NULL, 0, NULL);
+        #endif
     }
     return TRUE;
 }

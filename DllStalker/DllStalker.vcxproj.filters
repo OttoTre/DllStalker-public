@@ -1,4 +1,4 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="utf-8"?>
 <Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup>
     <Filter Include="Pliki źródłowe">
@@ -9,35 +9,290 @@
       <UniqueIdentifier>{93995380-89BD-4b04-88EB-625FBE52EBFB}</UniqueIdentifier>
       <Extensions>h;hh;hpp;hxx;h++;hm;inl;inc;ipp;xsd</Extensions>
     </Filter>
-    <Filter Include="Pliki zasobów">
+    <Filter Include="Pliki nagłówkowe\presets">
+      <UniqueIdentifier>{2BFC7E11-93A8-4BCD-A2C7-4D5E6F708017}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Pliki źródłowe\presets">
+      <UniqueIdentifier>{3CDD8F22-A4B9-4CDE-B3D8-5E6F70819018}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Pliki nagłówkowe\types">
+      <UniqueIdentifier>{4E1C3D55-1A8D-4F37-9C82-D6C2C1DAFA31}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Pliki źródłowe\types">
+      <UniqueIdentifier>{8A0E6F22-9E51-471D-9F18-1C1F26B9A7B1}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Pliki nagłówkowe\engine">
+      <UniqueIdentifier>{0C7BD2E1-86A4-44A0-A5D9-1C9E4D0A78A2}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Pliki źródłowe\engine">
+      <UniqueIdentifier>{2D9B3FE9-3CCF-4B65-9D8E-7B4C2C2B8A66}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Pliki nagłówkowe\services">
+      <UniqueIdentifier>{F1C9C3D3-2EE1-4C99-A1FA-1B0B2A3C4D5E}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Pliki źródłowe\services">
+      <UniqueIdentifier>{6A7B8C9D-1E2F-3A4B-5C6D-7E8F9A0B1C2D}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Pliki nagłówkowe\dumper">
+      <UniqueIdentifier>{B5E91D02-4A7C-4D9E-9C3F-3A8B5E7C9D02}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Pliki źródłowe\dumper">
+      <UniqueIdentifier>{8C4F2E11-AB7C-4FE3-9D11-2B6C7D8E9F03}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Pliki nagłówkowe\gui">
+      <UniqueIdentifier>{1A2B3C4D-5E6F-7081-92A3-B4C5D6E7F801}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Pliki nagłówkowe\gui\app">
+      <UniqueIdentifier>{2B3C4D5E-6F70-8192-A3B4-C5D6E7F80902}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Pliki nagłówkowe\gui\infra">
+      <UniqueIdentifier>{3C4D5E6F-7081-92A3-B4C5-D6E7F8090313}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Pliki nagłówkowe\gui\views">
+      <UniqueIdentifier>{4D5E6F70-8192-A3B4-C5D6-E7F8091424}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Pliki nagłówkowe\gui\state">
+      <UniqueIdentifier>{5E6F7081-92A3-B4C5-D6E7-F809152535}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Pliki źródłowe\gui">
+      <UniqueIdentifier>{6F708192-A3B4-C5D6-E7F8-0916253646}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Pliki źródłowe\gui\app">
+      <UniqueIdentifier>{708192A3-B4C5-D6E7-F809-1626374757}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Pliki źródłowe\gui\infra">
+      <UniqueIdentifier>{8192A3B4-C5D6-E7F8-0916-2737485868}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Pliki źródłowe\gui\views">
+      <UniqueIdentifier>{92A3B4C5-D6E7-F809-1627-3848596979}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Pliki źródłowe\gui\views\dock">
+      <UniqueIdentifier>{B4C5D6E7-F809-1627-3848-5960718293}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Pliki nagłówkowe\gui\views\dock">
+      <UniqueIdentifier>{C5D6E7F8-0916-2738-4959-6071829304}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Pliki źródłowe\gui\state">
+      <UniqueIdentifier>{A3B4C5D6-E7F8-0916-2738-4959607080}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Pliki dokumentów">
       <UniqueIdentifier>{67DA6AB6-F800-4c08-8B7A-83BB121AAD01}</UniqueIdentifier>
       <Extensions>rc;ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe;resx;tiff;tif;png;wav;mfcribbon-ms</Extensions>
-    </Filter>
-    <Filter Include="Pliki nagłówkowe\hooks_definition">
-      <UniqueIdentifier>{A6A502C1-4328-4C2F-9197-5F7B7A4D42B9}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="include\framework.h">
       <Filter>Pliki nagłówkowe</Filter>
     </ClInclude>
-    <ClInclude Include="include\hooks.h">
-      <Filter>Pliki nagłówkowe</Filter>
+    <ClInclude Include="include\services\hook_installer.h">
+      <Filter>Pliki nagłówkowe\services</Filter>
+    </ClInclude>
+    <ClInclude Include="include\services\call_log_types.h">
+      <Filter>Pliki nagłówkowe\services</Filter>
+    </ClInclude>
+    <ClInclude Include="include\services\call_log_hooks.h">
+      <Filter>Pliki nagłówkowe\services</Filter>
     </ClInclude>
     <ClInclude Include="include\pch.h">
       <Filter>Pliki nagłówkowe</Filter>
     </ClInclude>
-    <ClInclude Include="include\hooks_definitions.h">
-      <Filter>Pliki nagłówkowe</Filter>
+    <ClInclude Include="include\presets\hook_preset.h">
+      <Filter>Pliki nagłówkowe\presets</Filter>
     </ClInclude>
     <ClInclude Include="include\unity_resolver.h">
       <Filter>Pliki nagłówkowe</Filter>
     </ClInclude>
-    <ClInclude Include="include\hooks_definition\dane.h">
-      <Filter>Pliki nagłówkowe\hooks_definition</Filter>
+    <ClInclude Include="include\engine\unity_exports.h">
+      <Filter>Pliki nagłówkowe\engine</Filter>
+    </ClInclude>
+    <ClInclude Include="include\engine\unity_module.h">
+      <Filter>Pliki nagłówkowe\engine</Filter>
+    </ClInclude>
+    <ClInclude Include="include\engine\image_enumerator.h">
+      <Filter>Pliki nagłówkowe\engine</Filter>
+    </ClInclude>
+    <ClInclude Include="include\engine\reflection.h">
+      <Filter>Pliki nagłówkowe\engine</Filter>
+    </ClInclude>
+    <ClInclude Include="include\engine\runtime_invoke.h">
+      <Filter>Pliki nagłówkowe\engine</Filter>
+    </ClInclude>
+    <ClInclude Include="include\dumper\object_identity.h">
+      <Filter>Pliki nagłówkowe\dumper</Filter>
+    </ClInclude>
+    <ClInclude Include="include\dumper\class_catalog.h">
+      <Filter>Pliki nagłówkowe\dumper</Filter>
+    </ClInclude>
+    <ClInclude Include="include\dumper\method_catalog.h">
+      <Filter>Pliki nagłówkowe\dumper</Filter>
+    </ClInclude>
+    <ClInclude Include="include\dumper\field_catalog.h">
+      <Filter>Pliki nagłówkowe\dumper</Filter>
+    </ClInclude>
+    <ClInclude Include="include\dumper\collection_view.h">
+      <Filter>Pliki nagłówkowe\dumper</Filter>
+    </ClInclude>
+    <ClInclude Include="include\dumper\static_instance_finder.h">
+      <Filter>Pliki nagłówkowe\dumper</Filter>
+    </ClInclude>
+    <ClInclude Include="include\dumper\live_object_finder.h">
+      <Filter>Pliki nagłówkowe\dumper</Filter>
+    </ClInclude>
+    <ClInclude Include="include\dumper\method_invoker.h">
+      <Filter>Pliki nagłówkowe\dumper</Filter>
+    </ClInclude>
+    <ClInclude Include="include\dumper\diagnostics.h">
+      <Filter>Pliki nagłówkowe\dumper</Filter>
+    </ClInclude>
+    <ClInclude Include="include\dumper\console_dumper.h">
+      <Filter>Pliki nagłówkowe\dumper</Filter>
+    </ClInclude>
+    <ClInclude Include="include\gui\control_panel.h">
+      <Filter>Pliki nagłówkowe\gui</Filter>
     </ClInclude>
     <ClInclude Include="include\unity_dumper.h">
       <Filter>Pliki nagłówkowe</Filter>
+    </ClInclude>
+    <ClInclude Include="include\services\main_thread_dispatcher.h">
+      <Filter>Pliki nagłówkowe\services</Filter>
+    </ClInclude>
+    <ClInclude Include="include\gui\session_state.h">
+      <Filter>Pliki nagłówkowe\gui</Filter>
+    </ClInclude>
+    <ClInclude Include="include\gui\window.h">
+      <Filter>Pliki nagłówkowe\gui</Filter>
+    </ClInclude>
+    <ClInclude Include="include\gui\config.h">
+      <Filter>Pliki nagłówkowe\gui</Filter>
+    </ClInclude>
+    <ClInclude Include="include\types\dumper_types.h">
+      <Filter>Pliki nagłówkowe\types</Filter>
+    </ClInclude>
+    <ClInclude Include="include\types\memory_guard.h">
+      <Filter>Pliki nagłówkowe\types</Filter>
+    </ClInclude>
+    <ClInclude Include="include\types\type_classifier.h">
+      <Filter>Pliki nagłówkowe\types</Filter>
+    </ClInclude>
+    <ClInclude Include="include\types\value_decoder.h">
+      <Filter>Pliki nagłówkowe\types</Filter>
+    </ClInclude>
+    <ClInclude Include="include\types\value_writer.h">
+      <Filter>Pliki nagłówkowe\types</Filter>
+    </ClInclude>
+    <ClInclude Include="include\gui\infra\imgui_context_guard.h">
+      <Filter>Pliki nagłówkowe\gui\infra</Filter>
+    </ClInclude>
+    <ClInclude Include="include\gui\infra\dx11_renderer.h">
+      <Filter>Pliki nagłówkowe\gui\infra</Filter>
+    </ClInclude>
+    <ClInclude Include="include\gui\infra\message_pump.h">
+      <Filter>Pliki nagłówkowe\gui\infra</Filter>
+    </ClInclude>
+    <ClInclude Include="include\gui\infra\search_filter.h">
+      <Filter>Pliki nagłówkowe\gui\infra</Filter>
+    </ClInclude>
+    <ClInclude Include="include\gui\app\app_shell.h">
+      <Filter>Pliki nagłówkowe\gui\app</Filter>
+    </ClInclude>
+    <ClInclude Include="include\gui\views\error_modals.h">
+      <Filter>Pliki nagłówkowe\gui\views</Filter>
+    </ClInclude>
+    <ClInclude Include="include\gui\views\image_picker.h">
+      <Filter>Pliki nagłówkowe\gui\views</Filter>
+    </ClInclude>
+    <ClInclude Include="include\gui\views\class_browser.h">
+      <Filter>Pliki nagłówkowe\gui\views</Filter>
+    </ClInclude>
+    <ClInclude Include="include\gui\views\inspector_frame.h">
+      <Filter>Pliki nagłówkowe\gui\views</Filter>
+    </ClInclude>
+    <ClInclude Include="include\gui\views\breadcrumb_bar.h">
+      <Filter>Pliki nagłówkowe\gui\views</Filter>
+    </ClInclude>
+    <ClInclude Include="include\gui\views\methods_tab.h">
+      <Filter>Pliki nagłówkowe\gui\views</Filter>
+    </ClInclude>
+    <ClInclude Include="include\gui\views\invoke_args_modal.h">
+      <Filter>Pliki nagłówkowe\gui\views</Filter>
+    </ClInclude>
+    <ClInclude Include="include\gui\views\fields_tab.h">
+      <Filter>Pliki nagłówkowe\gui\views</Filter>
+    </ClInclude>
+    <ClInclude Include="include\gui\views\console_tab.h">
+      <Filter>Pliki nagłówkowe\gui\views</Filter>
+    </ClInclude>
+    <ClInclude Include="include\gui\state\image_cache_model.h">
+      <Filter>Pliki nagłówkowe\gui\state</Filter>
+    </ClInclude>
+    <ClInclude Include="include\gui\state\class_cache_model.h">
+      <Filter>Pliki nagłówkowe\gui\state</Filter>
+    </ClInclude>
+    <ClInclude Include="include\gui\state\inspector_model.h">
+      <Filter>Pliki nagłówkowe\gui\state</Filter>
+    </ClInclude>
+    <ClInclude Include="include\gui\state\edit_buffer_store.h">
+      <Filter>Pliki nagłówkowe\gui\state</Filter>
+    </ClInclude>
+    <ClInclude Include="include\gui\state\walker_controller.h">
+      <Filter>Pliki nagłówkowe\gui\state</Filter>
+    </ClInclude>
+    <ClInclude Include="include\gui\state\invoke_request_queue.h">
+      <Filter>Pliki nagłówkowe\gui\state</Filter>
+    </ClInclude>
+    <ClInclude Include="include\gui\state\async_loader_set.h">
+      <Filter>Pliki nagłówkowe\gui\state</Filter>
+    </ClInclude>
+    <ClInclude Include="include\gui\views\dock\watcher_tab.h">
+      <Filter>Pliki nagłówkowe\gui\views\dock</Filter>
+    </ClInclude>
+    <ClInclude Include="include\gui\views\dock\call_logger_tab.h">
+      <Filter>Pliki nagłówkowe\gui\views\dock</Filter>
+    </ClInclude>
+    <ClInclude Include="include\gui\views\dock\bookmarks_tab.h">
+      <Filter>Pliki nagłówkowe\gui\views\dock</Filter>
+    </ClInclude>
+    <ClInclude Include="include\gui\views\dock\history_tab.h">
+      <Filter>Pliki nagłówkowe\gui\views\dock</Filter>
+    </ClInclude>
+    <ClInclude Include="include\gui\views\dock\navigation_status_banner.h">
+      <Filter>Pliki nagłówkowe\gui\views\dock</Filter>
+    </ClInclude>
+    <ClInclude Include="include\gui\views\dock\utilities_dock.h">
+      <Filter>Pliki nagłówkowe\gui\views\dock</Filter>
+    </ClInclude>
+    <ClInclude Include="include\gui\state\history_steady_time.h">
+      <Filter>Pliki nagłówkowe\gui\state</Filter>
+    </ClInclude>
+    <ClInclude Include="include\gui\state\history_validation.h">
+      <Filter>Pliki nagłówkowe\gui\state</Filter>
+    </ClInclude>
+    <ClInclude Include="include\gui\state\field_path_resolver.h">
+      <Filter>Pliki nagłówkowe\gui\state</Filter>
+    </ClInclude>
+    <ClInclude Include="include\gui\state\field_snapshot_model.h">
+      <Filter>Pliki nagłówkowe\gui\state</Filter>
+    </ClInclude>
+    <ClInclude Include="include\gui\state\field_watch_model.h">
+      <Filter>Pliki nagłówkowe\gui\state</Filter>
+    </ClInclude>
+    <ClInclude Include="include\gui\state\call_log_model.h">
+      <Filter>Pliki nagłówkowe\gui\state</Filter>
+    </ClInclude>
+    <ClInclude Include="include\gui\state\inspector_bookmarks_model.h">
+      <Filter>Pliki nagłówkowe\gui\state</Filter>
+    </ClInclude>
+    <ClInclude Include="include\gui\state\inspector_history_model.h">
+      <Filter>Pliki nagłówkowe\gui\state</Filter>
+    </ClInclude>
+    <ClInclude Include="include\gui\state\inspector_history_types.h">
+      <Filter>Pliki nagłówkowe\gui\state</Filter>
+    </ClInclude>
+    <ClInclude Include="include\gui\state\inspector_navigation_snapshot.h">
+      <Filter>Pliki nagłówkowe\gui\state</Filter>
+    </ClInclude>
+    <ClInclude Include="include\gui\state\inspector_navigation_feedback.h">
+      <Filter>Pliki nagłówkowe\gui\state</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
@@ -47,22 +302,194 @@
     <ClCompile Include="src\pch.cpp">
       <Filter>Pliki źródłowe</Filter>
     </ClCompile>
-    <ClCompile Include="src\hooks.cpp">
-      <Filter>Pliki źródłowe</Filter>
+    <ClCompile Include="src\services\hook_installer.cpp">
+      <Filter>Pliki źródłowe\services</Filter>
+    </ClCompile>
+    <ClCompile Include="src\services\call_log_types.cpp">
+      <Filter>Pliki źródłowe\services</Filter>
+    </ClCompile>
+    <ClCompile Include="src\services\call_log_hooks.cpp">
+      <Filter>Pliki źródłowe\services</Filter>
     </ClCompile>
     <ClCompile Include="src\unity_resolver.cpp">
       <Filter>Pliki źródłowe</Filter>
     </ClCompile>
-    <ClCompile Include="src\hooks_definition\dane.cpp">
-      <Filter>Pliki źródłowe</Filter>
+    <ClCompile Include="src\engine\unity_module.cpp">
+      <Filter>Pliki źródłowe\engine</Filter>
+    </ClCompile>
+    <ClCompile Include="src\engine\image_enumerator.cpp">
+      <Filter>Pliki źródłowe\engine</Filter>
+    </ClCompile>
+    <ClCompile Include="src\engine\reflection.cpp">
+      <Filter>Pliki źródłowe\engine</Filter>
+    </ClCompile>
+    <ClCompile Include="src\engine\runtime_invoke.cpp">
+      <Filter>Pliki źródłowe\engine</Filter>
+    </ClCompile>
+    <ClCompile Include="src\dumper\object_identity.cpp">
+      <Filter>Pliki źródłowe\dumper</Filter>
+    </ClCompile>
+    <ClCompile Include="src\dumper\class_catalog.cpp">
+      <Filter>Pliki źródłowe\dumper</Filter>
+    </ClCompile>
+    <ClCompile Include="src\dumper\method_catalog.cpp">
+      <Filter>Pliki źródłowe\dumper</Filter>
+    </ClCompile>
+    <ClCompile Include="src\dumper\field_catalog.cpp">
+      <Filter>Pliki źródłowe\dumper</Filter>
+    </ClCompile>
+    <ClCompile Include="src\dumper\collection_view.cpp">
+      <Filter>Pliki źródłowe\dumper</Filter>
+    </ClCompile>
+    <ClCompile Include="src\dumper\static_instance_finder.cpp">
+      <Filter>Pliki źródłowe\dumper</Filter>
+    </ClCompile>
+    <ClCompile Include="src\dumper\live_object_finder.cpp">
+      <Filter>Pliki źródłowe\dumper</Filter>
+    </ClCompile>
+    <ClCompile Include="src\dumper\method_invoker.cpp">
+      <Filter>Pliki źródłowe\dumper</Filter>
+    </ClCompile>
+    <ClCompile Include="src\dumper\diagnostics.cpp">
+      <Filter>Pliki źródłowe\dumper</Filter>
+    </ClCompile>
+    <ClCompile Include="src\dumper\console_dumper.cpp">
+      <Filter>Pliki źródłowe\dumper</Filter>
+    </ClCompile>
+    <ClCompile Include="src\gui\control_panel.cpp">
+      <Filter>Pliki źródłowe\gui</Filter>
+    </ClCompile>
+    <ClCompile Include="src\presets\preset_registry.cpp">
+      <Filter>Pliki źródłowe\presets</Filter>
     </ClCompile>
     <ClCompile Include="src\unity_dumper.cpp">
       <Filter>Pliki źródłowe</Filter>
     </ClCompile>
-  </ItemGroup>
-  <ItemGroup>
-    <None Include="CONDITIONAL_INCLUDE_OPTIMIZATION.md" />
-    <None Include="PROJECT_CONFIG_REFERENCE.md" />
-    <None Include="REFACTORING_SUMMARY.md" />
+    <ClCompile Include="src\gui\session_state.cpp">
+      <Filter>Pliki źródłowe\gui</Filter>
+    </ClCompile>
+    <ClCompile Include="src\gui\window.cpp">
+      <Filter>Pliki źródłowe\gui</Filter>
+    </ClCompile>
+    <ClCompile Include="src\types\memory_guard.cpp">
+      <Filter>Pliki źródłowe\types</Filter>
+    </ClCompile>
+    <ClCompile Include="src\types\type_classifier.cpp">
+      <Filter>Pliki źródłowe\types</Filter>
+    </ClCompile>
+    <ClCompile Include="src\types\value_decoder.cpp">
+      <Filter>Pliki źródłowe\types</Filter>
+    </ClCompile>
+    <ClCompile Include="src\types\value_writer.cpp">
+      <Filter>Pliki źródłowe\types</Filter>
+    </ClCompile>
+    <ClCompile Include="src\services\main_thread_dispatcher.cpp">
+      <Filter>Pliki źródłowe\services</Filter>
+    </ClCompile>
+    <ClCompile Include="src\gui\infra\dx11_renderer.cpp">
+      <Filter>Pliki źródłowe\gui\infra</Filter>
+    </ClCompile>
+    <ClCompile Include="src\gui\infra\message_pump.cpp">
+      <Filter>Pliki źródłowe\gui\infra</Filter>
+    </ClCompile>
+    <ClCompile Include="src\gui\infra\search_filter.cpp">
+      <Filter>Pliki źródłowe\gui\infra</Filter>
+    </ClCompile>
+    <ClCompile Include="src\gui\app\app_shell.cpp">
+      <Filter>Pliki źródłowe\gui\app</Filter>
+    </ClCompile>
+    <ClCompile Include="src\gui\views\error_modals.cpp">
+      <Filter>Pliki źródłowe\gui\views</Filter>
+    </ClCompile>
+    <ClCompile Include="src\gui\views\image_picker.cpp">
+      <Filter>Pliki źródłowe\gui\views</Filter>
+    </ClCompile>
+    <ClCompile Include="src\gui\views\class_browser.cpp">
+      <Filter>Pliki źródłowe\gui\views</Filter>
+    </ClCompile>
+    <ClCompile Include="src\gui\views\inspector_frame.cpp">
+      <Filter>Pliki źródłowe\gui\views</Filter>
+    </ClCompile>
+    <ClCompile Include="src\gui\views\breadcrumb_bar.cpp">
+      <Filter>Pliki źródłowe\gui\views</Filter>
+    </ClCompile>
+    <ClCompile Include="src\gui\views\methods_tab.cpp">
+      <Filter>Pliki źródłowe\gui\views</Filter>
+    </ClCompile>
+    <ClCompile Include="src\gui\views\invoke_args_modal.cpp">
+      <Filter>Pliki źródłowe\gui\views</Filter>
+    </ClCompile>
+    <ClCompile Include="src\gui\views\fields_tab.cpp">
+      <Filter>Pliki źródłowe\gui\views</Filter>
+    </ClCompile>
+    <ClCompile Include="src\gui\views\console_tab.cpp">
+      <Filter>Pliki źródłowe\gui\views</Filter>
+    </ClCompile>
+    <ClCompile Include="src\gui\state\image_cache_model.cpp">
+      <Filter>Pliki źródłowe\gui\state</Filter>
+    </ClCompile>
+    <ClCompile Include="src\gui\state\class_cache_model.cpp">
+      <Filter>Pliki źródłowe\gui\state</Filter>
+    </ClCompile>
+    <ClCompile Include="src\gui\state\inspector_model.cpp">
+      <Filter>Pliki źródłowe\gui\state</Filter>
+    </ClCompile>
+    <ClCompile Include="src\gui\state\async_loader_set.cpp">
+      <Filter>Pliki źródłowe\gui\state</Filter>
+    </ClCompile>
+    <ClCompile Include="src\gui\state\walker_controller.cpp">
+      <Filter>Pliki źródłowe\gui\state</Filter>
+    </ClCompile>
+    <ClCompile Include="src\gui\state\invoke_request_queue.cpp">
+      <Filter>Pliki źródłowe\gui\state</Filter>
+    </ClCompile>
+    <ClCompile Include="src\gui\views\dock\bookmarks_tab.cpp">
+      <Filter>Pliki źródłowe\gui\views\dock</Filter>
+    </ClCompile>
+    <ClCompile Include="src\gui\views\dock\history_tab.cpp">
+      <Filter>Pliki źródłowe\gui\views\dock</Filter>
+    </ClCompile>
+    <ClCompile Include="src\gui\views\dock\watcher_tab.cpp">
+      <Filter>Pliki źródłowe\gui\views\dock</Filter>
+    </ClCompile>
+    <ClCompile Include="src\gui\views\dock\call_logger_tab.cpp">
+      <Filter>Pliki źródłowe\gui\views\dock</Filter>
+    </ClCompile>
+    <ClCompile Include="src\gui\views\dock\navigation_status_banner.cpp">
+      <Filter>Pliki źródłowe\gui\views\dock</Filter>
+    </ClCompile>
+    <ClCompile Include="src\gui\views\dock\utilities_dock.cpp">
+      <Filter>Pliki źródłowe\gui\views\dock</Filter>
+    </ClCompile>
+    <ClCompile Include="src\gui\state\history_validation.cpp">
+      <Filter>Pliki źródłowe\gui\state</Filter>
+    </ClCompile>
+    <ClCompile Include="src\gui\state\field_path_resolver.cpp">
+      <Filter>Pliki źródłowe\gui\state</Filter>
+    </ClCompile>
+    <ClCompile Include="src\gui\state\field_snapshot_model.cpp">
+      <Filter>Pliki źródłowe\gui\state</Filter>
+    </ClCompile>
+    <ClCompile Include="src\gui\state\field_watch_model.cpp">
+      <Filter>Pliki źródłowe\gui\state</Filter>
+    </ClCompile>
+    <ClCompile Include="src\gui\state\call_log_model.cpp">
+      <Filter>Pliki źródłowe\gui\state</Filter>
+    </ClCompile>
+    <ClCompile Include="src\gui\state\inspector_bookmarks_model.cpp">
+      <Filter>Pliki źródłowe\gui\state</Filter>
+    </ClCompile>
+    <ClCompile Include="src\gui\state\inspector_history_model.cpp">
+      <Filter>Pliki źródłowe\gui\state</Filter>
+    </ClCompile>
+    <ClCompile Include="src\gui\state\inspector_history_restore.cpp">
+      <Filter>Pliki źródłowe\gui\state</Filter>
+    </ClCompile>
+    <ClCompile Include="src\gui\state\inspector_navigation_feedback.cpp">
+      <Filter>Pliki źródłowe\gui\state</Filter>
+    </ClCompile>
+    <ClCompile Include="src\gui\state\image_selection.cpp">
+      <Filter>Pliki źródłowe\gui\state</Filter>
+    </ClCompile>
   </ItemGroup>
 </Project>
