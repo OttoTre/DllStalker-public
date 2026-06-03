@@ -4,13 +4,16 @@
 
 #include "gui/views/methods_tab.h"
 
+#include "gui/session_state.h"
 #include "gui/config.h"
 #include "gui/infra/search_filter.h"
+#include "gui/views/dispatch_status.h"
 #include "gui/views/invoke_args_modal.h"
-#include "gui/state/call_log_model.h"
-#include "gui/state/history_steady_time.h"
+#include "dumper/invoke_param_policy.h"
+#include "gui/state/runtime/call_log_model.h"
+#include "gui/state/navigation/history_steady_time.h"
 #include "services/main_thread_dispatcher.h"
-#include "types/type_classifier.h"
+#include "types/memory_guard.h"
 
 #include "imgui.h"
 
@@ -22,27 +25,6 @@ namespace Gui::Views
 {
 namespace
 {
-// The dumper-side InvokeMethod marshalling supports numeric primitives,
-// bool, and System.String. Anything else (managed reference types,
-// arrays, lists, value-type structs, generics) gets the Run button
-// disabled in the UI so the user doesn't trigger a deferred error
-// toast for something we already know we can't handle.
-bool MethodArgsAreInvokable(const Engine::MethodInfo& method) {
-    using Cat = Engine::Types::TypeCategory;
-    for (const auto& p : method.paramTypes) {
-        const Cat cat = Engine::Types::GetCategory(p.typeName);
-        switch (cat) {
-        case Cat::I1: case Cat::I2: case Cat::I4: case Cat::I8:
-        case Cat::U1: case Cat::U2: case Cat::U4: case Cat::U8:
-        case Cat::R4: case Cat::R8: case Cat::BOOLEAN: case Cat::STRING:
-            continue;
-        default:
-            return false;
-        }
-    }
-    return true;
-}
-
 std::string LookupSidebarClassName(const ControlPanelSessionState& state) {
     if (!state.selectedClass) {
         return {};
@@ -60,7 +42,7 @@ std::string LookupSidebarClassName(const ControlPanelSessionState& state) {
 } // namespace
 
 void RenderMethodsTab(const InspectorCache& inspectorSnapshot,
-                      AppShell::CopyFeedbackState& copyFeedback,
+                      CopyFeedbackState& copyFeedback,
                       bool inspectorLoadInProgress,
                       ControlPanelSessionState& state) {
     if (inspectorSnapshot.methods.empty() && !inspectorLoadInProgress) {
@@ -70,13 +52,7 @@ void RenderMethodsTab(const InspectorCache& inspectorSnapshot,
     ImGui::Separator();
     ImGui::BeginChild("MethodsStatusBar", ImVec2(0, 25 * Config::GUI_SCALE), true, ImGuiWindowFlags_NoScrollbar);
     {
-        // Method Invoker toast. The dispatcher worker bumps
-        // latestInvokeResultVersion under invokeResultMutex; we cache the
-        // last-observed version on this (GUI) thread and only acquire the
-        // mutex when it changes. That means the steady-state per-frame cost
-        // is one atomic load and a couple of branches -- no contention with
-        // an in-flight invoke that's holding the mutex while running on the
-        // main thread.
+        // Invoke toast: read latestVersion; lock invokeQueue only when it changes.
         struct InvokeToastCache {
             int                  version             = 0;
             float                stampedAtSeconds    = -1.0f;
@@ -87,28 +63,22 @@ void RenderMethodsTab(const InspectorCache& inspectorSnapshot,
         };
         static InvokeToastCache s_toast;
 
-        const int currentInvokeVersion = state.latestInvokeResultVersion.load(std::memory_order_acquire);
+        const int currentInvokeVersion = state.invokeQueue.latestVersion.load(std::memory_order_acquire);
         if (currentInvokeVersion != s_toast.version) {
-            // New result available. Take the mutex once to copy the snapshot
-            // out, stamp wall-clock time on the GUI thread, then drop the
-            // lock. Subsequent frames render from the cache lock-free.
-            std::lock_guard<std::mutex> lock(state.invokeResultMutex);
+            // Copy the latest result into thread-local toast state.
+            std::lock_guard<std::mutex> lock(state.invokeQueue.mutex);
             s_toast.version          = currentInvokeVersion;
             s_toast.stampedAtSeconds = static_cast<float>(ImGui::GetTime());
-            s_toast.succeeded        = state.latestInvokeResult.succeeded;
-            s_toast.methodName       = state.latestInvokeMethodName;
-            s_toast.returnDisplay    = state.latestInvokeResult.returnDisplay;
-            s_toast.errorMessage     = state.latestInvokeResult.error;
-            // Mirror the wall-clock stamp back into the session state so
-            // any other reader can observe it; harmless redundancy with
-            // the cache, but lets future code (e.g. logging) consult one
-            // place. GUI thread is the only writer of this field.
-            state.latestInvokeResultAtSeconds = s_toast.stampedAtSeconds;
+            s_toast.succeeded        = state.invokeQueue.latestResult.succeeded;
+            s_toast.methodName       = state.invokeQueue.latestMethodName;
+            s_toast.returnDisplay    = state.invokeQueue.latestResult.returnDisplay;
+            s_toast.errorMessage     = state.invokeQueue.latestResult.error;
+            state.invokeQueue.latestAtSeconds = s_toast.stampedAtSeconds;
 
             State::MethodAuditPayload audit{};
             audit.methodName    = s_toast.methodName;
-            audit.parameters    = state.latestInvokeMethodParameters;
-            audit.argsDisplay   = state.latestInvokeArgsDisplay;
+            audit.parameters    = state.invokeQueue.latestMethodParameters;
+            audit.argsDisplay   = state.invokeQueue.latestArgsDisplay;
             audit.succeeded     = s_toast.succeeded;
             audit.returnDisplay = s_toast.returnDisplay;
             audit.error         = s_toast.errorMessage;
@@ -118,9 +88,6 @@ void RenderMethodsTab(const InspectorCache& inspectorSnapshot,
         const float now = static_cast<float>(ImGui::GetTime());
         const bool  copyToastActive   = copyFeedback.copiedAtSeconds > 0 && (now - copyFeedback.copiedAtSeconds) < 2.0f;
         const bool  invokeToastActive = s_toast.stampedAtSeconds > 0 && (now - s_toast.stampedAtSeconds) < 3.0f;
-
-        const bool dispatchAvailable = Engine::Services::MainThreadDispatcher::IsDispatchAvailable();
-        const bool mainThreadCaptured = Engine::Services::MainThreadDispatcher::IsMainThreadCaptured();
 
         if (copyToastActive) {
             ImGui::TextColored(ImVec4(0, 1, 0, 1), "Copied: %s", copyFeedback.copiedMethodAddress);
@@ -136,17 +103,8 @@ void RenderMethodsTab(const InspectorCache& inspectorSnapshot,
                                    s_toast.errorMessage.empty() ? "<unknown error>" : s_toast.errorMessage.c_str());
             }
         }
-        else if (!dispatchAvailable) {
-            ImGui::TextColored(ImVec4(0.95f, 0.35f, 0.35f, 1.0f),
-                               "Method Invoker disabled (runtime_invoke hook unavailable)");
-        }
-        else if (!mainThreadCaptured) {
-            ImGui::TextColored(ImVec4(0.95f, 0.85f, 0.25f, 1.0f),
-                               "Waiting for engine to make a managed call (main thread not yet captured)...");
-        }
         else {
-            ImGui::TextDisabled("Tip: Double-click RVA to copy. Use Run to invoke (main thread = 0x%lX).",
-                                static_cast<unsigned long>(Engine::Services::MainThreadDispatcher::GetMainThreadId()));
+            RenderDispatchStatus("Method Invoker");
         }
     }
     ImGui::EndChild();
@@ -173,18 +131,12 @@ void RenderMethodsTab(const InspectorCache& inspectorSnapshot,
         ImGui::TableHeadersRow();
 
         const bool haveInstance       = inspectorSnapshot.activeInstancePtr != nullptr;
-        // Cache once per frame; reading these atomics is cheap but we hit
-        // them per-row, so a single load up here keeps the loop tight and
-        // makes "why is this row disabled?" deterministic across rows.
+        // Load dispatch flags once per frame (shared by every row).
         const bool dispatchReady      = Engine::Services::MainThreadDispatcher::IsDispatchAvailable()
                                      && Engine::Services::MainThreadDispatcher::IsMainThreadCaptured();
         const bool dispatchUnavailable = !Engine::Services::MainThreadDispatcher::IsDispatchAvailable();
 
-        // Deferred popup open: ImGui hashes the popup ID against the
-        // current ID stack at OpenPopup time, so we cannot call OpenPopup
-        // from inside the per-row PushID/PopID block (BeginPopupModal at
-        // the outer scope would never see the matching ID). Capture the
-        // request and dispatch it after EndTable instead.
+        // OpenPopup must run outside the per-row PushID scope — defer until after EndTable.
         bool requestOpenInvokePopup = false;
 
         for (size_t methodIndex = 0; methodIndex < inspectorSnapshot.methods.size(); ++methodIndex) {
@@ -194,6 +146,11 @@ void RenderMethodsTab(const InspectorCache& inspectorSnapshot,
             }
             ++visibleMethodCount;
             ImGui::TableNextRow();
+            if (method.jitFailed) {
+                ImGui::TableSetBgColor(ImGuiTableBgTarget_RowBg0, IM_COL32(85, 30, 30, 60));
+            }
+            const bool execOk = method.address == 0
+                || Engine::Memory::IsExecutablePointer(reinterpret_cast<const void*>(method.address));
             ImGui::PushID(static_cast<int>(methodIndex));
 
             ImGui::TableSetColumnIndex(0);
@@ -203,13 +160,19 @@ void RenderMethodsTab(const InspectorCache& inspectorSnapshot,
                 ImGui::TextDisabled("-");
                 ImGui::EndDisabled();
                 if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled)) {
-                    if (method.address == 0) {
+                    if (method.jitFailed) {
+                        ImGui::SetTooltip("JIT compile failed (open generic / unsupported)");
+                    }
+                    else if (method.address == 0) {
                         ImGui::SetTooltip("Native address unavailable");
+                    }
+                    else if (!execOk) {
+                        ImGui::SetTooltip("Method address not executable");
                     }
                     else if (!method.paramsKnown && !method.paramTypes.empty()) {
                         ImGui::SetTooltip("Param signature unknown");
                     }
-                    else if (!MethodArgsAreInvokable(method)) {
+                    else if (!Engine::Dumper::MethodIsInvokable(method)) {
                         ImGui::SetTooltip("Arg type not supported for call logging");
                     }
                     else {
@@ -267,32 +230,28 @@ void RenderMethodsTab(const InspectorCache& inspectorSnapshot,
 
             ImGui::TableSetColumnIndex(5);
 
-            // Decide whether the Run button is clickable. Reasons it might
-            // not be (each gets its own tooltip so the user knows why):
-            //   * Method Invoker globally disabled (hook didn't install)
-            //   * Main thread not yet captured (game still loading)
-            //   * Param signature unknown (Mono build missing exports)
-            //   * Args contain types we can't marshal in v1
-            //   * Instance method without an active instance selected
-            //   * Engine handle missing (shouldn't happen, but defensive)
+            // Run gating — disabledReason tooltips explain each failure mode.
             const bool argsKnown   = method.paramsKnown || method.paramTypes.empty();
-            const bool argsOk      = MethodArgsAreInvokable(method);
+            const bool argsOk      = Engine::Dumper::MethodIsInvokable(method);
             const bool needsInst   = !method.isStatic;
             const bool handleOk    = method.engineHandle != nullptr;
             const bool runEnabled  = dispatchReady
                                   && argsKnown && argsOk && handleOk
+                                  && execOk
+                                  && !method.jitFailed
                                   && (!needsInst || haveInstance);
 
             const char* disabledReason = nullptr;
-            if (dispatchUnavailable)        disabledReason = "Method Invoker disabled (hook unavailable)";
+            if (method.jitFailed)           disabledReason = "JIT compile failed (open generic / unsupported)";
+            else if (dispatchUnavailable)   disabledReason = "Method Invoker disabled (hook unavailable)";
             else if (!dispatchReady)        disabledReason = "Main thread not yet captured";
             else if (!handleOk)             disabledReason = "Method handle missing";
+            else if (!execOk)               disabledReason = "Method address not executable";
             else if (!argsKnown)            disabledReason = "Param signature unknown";
-            else if (!argsOk)               disabledReason = "Arg type not supported in v1";
+            else if (!argsOk)               disabledReason = "Arg type not supported";
             else if (needsInst && !haveInstance) disabledReason = "No active instance";
 
-            // Orange/red palette per Feature-Plan-2: signal "this is an
-            // unsafe action".
+            // Warm accent — Run invokes managed code on the main thread.
             ImGui::PushStyleColor(ImGuiCol_Button,        ImVec4(0.85f, 0.45f, 0.20f, 1.0f));
             ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.95f, 0.55f, 0.25f, 1.0f));
             ImGui::PushStyleColor(ImGuiCol_ButtonActive,  ImVec4(0.75f, 0.35f, 0.15f, 1.0f));
@@ -318,8 +277,8 @@ void RenderMethodsTab(const InspectorCache& inspectorSnapshot,
                     // Stage the open request; the actual OpenPopup call
                     // happens after EndTable so the popup ID is hashed
                     // against the same ID stack BeginPopupModal sees.
-                    state.pendingInvokeMethodIndex = static_cast<int>(methodIndex);
-                    state.invokeArgBuffers.assign(method.paramTypes.size(), std::array<char, 64>{});
+                    state.invokeQueue.pendingInvokeMethodIndex = static_cast<int>(methodIndex);
+                    state.invokeQueue.argBuffers.assign(method.paramTypes.size(), std::array<char, 64>{});
                     requestOpenInvokePopup = true;
                 }
             }
@@ -338,8 +297,7 @@ void RenderMethodsTab(const InspectorCache& inspectorSnapshot,
         }
     }
 
-    // Popup is a child of the Methods tab so it inherits the tab's
-    // ID stack (avoids cross-tab modal collisions).
+    // Invoke-args modal lives at tab scope so its ImGui ID stack matches OpenPopup.
     RenderInvokeArgsPopup(state, inspectorSnapshot);
 }
 } // namespace Gui::Views

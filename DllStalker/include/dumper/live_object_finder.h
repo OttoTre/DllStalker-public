@@ -24,9 +24,7 @@ class LiveObjectFinder
 public:
     explicit LiveObjectFinder(UnityResolver& resolver);
 
-    // Resolves dumper-only introspection exports into the shared exports
-    // table on resolver.module. Run once at construction; logs on partial
-    // failure but does not throw.
+    // Run once at construction
     bool InitDumperExports();
 
     // Returns the System.Type wrapper for `klass` so it can be passed to

@@ -9,6 +9,7 @@
 #include <string_view>
 
 #include "dumper/object_identity.h"
+#include "types/memory_guard.h"
 #include "types/type_classifier.h"
 #include "types/value_decoder.h"
 
@@ -66,6 +67,45 @@ std::string FormatReturnDisplay(std::string_view returnType, void* rawReturn) {
                                     reinterpret_cast<uintptr_t>(rawReturn) + kBoxedDataOffset,
                                     true);
 }
+
+bool MarshalPrimitiveArg(Types::TypeCategory cat,
+                         const std::string& input,
+                         PrimitiveSlot& slot,
+                         void*& outArg,
+                         std::string& error,
+                         size_t argIndex,
+                         std::string_view typeLabel) {
+    using Cat = Types::TypeCategory;
+    try {
+        switch (cat) {
+        case Cat::I1: slot.value.i1 = static_cast<int8_t> (std::stoll(input, nullptr, 0)); outArg = &slot.value.i1; return true;
+        case Cat::I2: slot.value.i2 = static_cast<int16_t>(std::stoll(input, nullptr, 0)); outArg = &slot.value.i2; return true;
+        case Cat::I4: slot.value.i4 = static_cast<int32_t>(std::stoll(input, nullptr, 0)); outArg = &slot.value.i4; return true;
+        case Cat::I8: slot.value.i8 = static_cast<int64_t>(std::stoll(input, nullptr, 0)); outArg = &slot.value.i8; return true;
+        case Cat::U1: slot.value.u1 = static_cast<uint8_t> (std::stoull(input, nullptr, 0)); outArg = &slot.value.u1; return true;
+        case Cat::U2: slot.value.u2 = static_cast<uint16_t>(std::stoull(input, nullptr, 0)); outArg = &slot.value.u2; return true;
+        case Cat::U4: slot.value.u4 = static_cast<uint32_t>(std::stoull(input, nullptr, 0)); outArg = &slot.value.u4; return true;
+        case Cat::U8: slot.value.u8 = static_cast<uint64_t>(std::stoull(input, nullptr, 0)); outArg = &slot.value.u8; return true;
+        case Cat::R4: slot.value.r4 = std::stof(input); outArg = &slot.value.r4; return true;
+        case Cat::R8: slot.value.r8 = std::stod(input); outArg = &slot.value.r8; return true;
+        case Cat::BOOLEAN: {
+            std::string low = input;
+            std::transform(low.begin(), low.end(), low.begin(), ::tolower);
+            slot.value.u1 = (low == "true" || low == "1" || low == "yes") ? 1 : 0;
+            outArg = &slot.value.u1;
+            return true;
+        }
+        default:
+            error = "Arg " + std::to_string(argIndex) + ": type '" + std::string(typeLabel)
+                  + "' not supported for primitive marshal";
+            return false;
+        }
+    }
+    catch (const std::exception& e) {
+        error = "Arg " + std::to_string(argIndex) + " (" + std::string(typeLabel) + "): " + e.what();
+        return false;
+    }
+}
 } // namespace
 
 MethodInvoker::MethodInvoker(UnityResolver& resolver, const ObjectIdentity& identity)
@@ -101,6 +141,11 @@ InvokeResult MethodInvoker::InvokeMethod(const MethodInfo& method,
         result.error = "Arg count mismatch";
         return result;
     }
+    if (method.address != 0
+        && !Memory::IsExecutablePointer(reinterpret_cast<const void*>(method.address))) {
+        result.error = "Method address not executable";
+        return result;
+    }
 
     m_resolver.module.EnsureThreadAttached();
 
@@ -115,73 +160,82 @@ InvokeResult MethodInvoker::InvokeMethod(const MethodInfo& method,
 
     using Cat = Types::TypeCategory;
     for (size_t i = 0; i < method.paramTypes.size(); ++i) {
-        const std::string& typeName = method.paramTypes[i].typeName;
+        const MethodParam& param     = method.paramTypes[i];
+        const std::string& typeName = param.typeName;
         const std::string& input    = argInputs[i];
 
-        // "null" literal works for any reference type.
+        const bool isEnumParam = param.isEnum && !param.underlyingType.empty();
+        if (isEnumParam && input == "null") {
+            result.error = "Arg " + std::to_string(i) + ": enum params expect an integer value";
+            return result;
+        }
+
+        // "null" literal works for managed reference types.
         if (input == "null") {
             args.push_back(nullptr);
             continue;
         }
 
-        const Cat cat = Types::GetCategory(typeName);
-        primSlots.emplace_back();
-        PrimitiveSlot& slot = primSlots.back();
-
-        try {
-            switch (cat) {
-            case Cat::I1: slot.value.i1 = static_cast<int8_t> (std::stoll(input, nullptr, 0)); args.push_back(&slot.value.i1); break;
-            case Cat::I2: slot.value.i2 = static_cast<int16_t>(std::stoll(input, nullptr, 0)); args.push_back(&slot.value.i2); break;
-            case Cat::I4: slot.value.i4 = static_cast<int32_t>(std::stoll(input, nullptr, 0)); args.push_back(&slot.value.i4); break;
-            case Cat::I8: slot.value.i8 = static_cast<int64_t>(std::stoll(input, nullptr, 0)); args.push_back(&slot.value.i8); break;
-            case Cat::U1: slot.value.u1 = static_cast<uint8_t> (std::stoull(input, nullptr, 0)); args.push_back(&slot.value.u1); break;
-            case Cat::U2: slot.value.u2 = static_cast<uint16_t>(std::stoull(input, nullptr, 0)); args.push_back(&slot.value.u2); break;
-            case Cat::U4: slot.value.u4 = static_cast<uint32_t>(std::stoull(input, nullptr, 0)); args.push_back(&slot.value.u4); break;
-            case Cat::U8: slot.value.u8 = static_cast<uint64_t>(std::stoull(input, nullptr, 0)); args.push_back(&slot.value.u8); break;
-            case Cat::R4: slot.value.r4 = std::stof(input); args.push_back(&slot.value.r4); break;
-            case Cat::R8: slot.value.r8 = std::stod(input); args.push_back(&slot.value.r8); break;
-            case Cat::BOOLEAN: {
-                std::string low = input;
-                std::transform(low.begin(), low.end(), low.begin(), ::tolower);
-                slot.value.u1 = (low == "true" || low == "1" || low == "yes") ? 1 : 0;
-                args.push_back(&slot.value.u1);
-                break;
-            }
-            case Cat::STRING: {
-                // Allocate a managed string; runtime_invoke wants the
-                // managed pointer directly, NOT pointer-to-pointer.
-                void* managed = nullptr;
-                if (m_resolver.module.isIL2CPP) {
-                    if (!m_resolver.module.exports.fnIl2cppStringNew) {
-                        result.error = "Arg " + std::to_string(i) + ": il2cpp_string_new not resolved";
-                        return result;
-                    }
-                    managed = m_resolver.module.exports.fnIl2cppStringNew(input.c_str());
-                }
-                else {
-                    if (!m_resolver.module.exports.fnMonoStringNew || !m_resolver.module.domain) {
-                        result.error = "Arg " + std::to_string(i) + ": mono_string_new / domain not resolved";
-                        return result;
-                    }
-                    managed = m_resolver.module.exports.fnMonoStringNew(m_resolver.module.domain, input.c_str());
-                }
-                if (!managed) {
-                    result.error = "Arg " + std::to_string(i) + ": failed to allocate managed string";
-                    return result;
-                }
-                primSlots.pop_back();
-                args.push_back(managed);
-                break;
-            }
-            default:
-                result.error = "Arg " + std::to_string(i) + ": type '" + typeName + "' not supported in v1";
+        if (isEnumParam) {
+            primSlots.emplace_back();
+            PrimitiveSlot& slot = primSlots.back();
+            void* argPtr = nullptr;
+            const Cat underlyingCat = Types::GetCategory(param.underlyingType);
+            if (!MarshalPrimitiveArg(underlyingCat, input, slot, argPtr, result.error, i, param.underlyingType)) {
                 return result;
             }
+            args.push_back(argPtr);
+            continue;
         }
-        catch (const std::exception& e) {
-            result.error = "Arg " + std::to_string(i) + " (" + typeName + "): " + e.what();
+
+        const Cat cat = Types::GetCategory(typeName);
+
+        if (cat == Cat::PTR) {
+            try {
+                const unsigned long long addr = std::stoull(input, nullptr, 0);
+                args.push_back(reinterpret_cast<void*>(static_cast<uintptr_t>(addr)));
+            }
+            catch (const std::exception&) {
+                result.error = "Arg " + std::to_string(i) + ": invalid pointer '" + input + "'";
+                return result;
+            }
+            continue;
+        }
+
+        if (cat == Cat::STRING) {
+            void* managed = nullptr;
+            if (m_resolver.module.isIL2CPP) {
+                if (!m_resolver.module.exports.fnIl2cppStringNew) {
+                    result.error = "Arg " + std::to_string(i) + ": il2cpp_string_new not resolved";
+                    return result;
+                }
+                managed = m_resolver.module.exports.fnIl2cppStringNew(input.c_str());
+            }
+            else {
+                if (!m_resolver.module.exports.fnMonoStringNew || !m_resolver.module.domain) {
+                    result.error = "Arg " + std::to_string(i) + ": mono_string_new / domain not resolved";
+                    return result;
+                }
+                managed = m_resolver.module.exports.fnMonoStringNew(m_resolver.module.domain, input.c_str());
+            }
+            if (!managed) {
+                result.error = "Arg " + std::to_string(i) + ": failed to allocate managed string";
+                return result;
+            }
+            args.push_back(managed);
+            continue;
+        }
+
+        primSlots.emplace_back();
+        PrimitiveSlot& slot = primSlots.back();
+        void* argPtr = nullptr;
+        if (!MarshalPrimitiveArg(cat, input, slot, argPtr, result.error, i, typeName)) {
+            if (result.error.empty()) {
+                result.error = "Arg " + std::to_string(i) + ": type '" + typeName + "' not supported";
+            }
             return result;
         }
+        args.push_back(argPtr);
     }
 
     // ---- Invoke ----

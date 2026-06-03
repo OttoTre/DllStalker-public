@@ -4,6 +4,7 @@
 
 #include "gui/views/dock/call_logger_tab.h"
 
+#include "gui/session_state.h"
 #include "gui/config.h"
 
 #include "imgui.h"

@@ -4,6 +4,8 @@
 
 #include "gui/views/breadcrumb_bar.h"
 
+#include "gui/session_state.h"
+
 #include "imgui.h"
 
 namespace Gui::Views
@@ -14,7 +16,7 @@ namespace Gui::Views
 // except the last is a SmallButton that pops back to that level; the last
 // entry is rendered as plain text since it is the current view.
 void RenderBreadcrumbBar(ControlPanelSessionState& state) {
-    if (state.navigationStack.empty()) {
+    if (state.walker.stack.empty()) {
         return;
     }
 
@@ -23,9 +25,9 @@ void RenderBreadcrumbBar(ControlPanelSessionState& state) {
     bool pendingNavigate = false;
     size_t pendingIndex = 0;
 
-    for (size_t i = 0; i < state.navigationStack.size(); ++i) {
-        const auto& step = state.navigationStack[i];
-        const bool isCurrent = (i + 1 == state.navigationStack.size());
+    for (size_t i = 0; i < state.walker.stack.size(); ++i) {
+        const auto& step = state.walker.stack[i];
+        const bool isCurrent = (i + 1 == state.walker.stack.size());
         const char* label = step.label.empty() ? "<?>" : step.label.c_str();
 
         if (i > 0) {

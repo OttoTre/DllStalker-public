@@ -29,24 +29,21 @@ void OnWindowResize(UINT width, UINT height) {
     }
 }
 
-void ApplyGuiScale() // temporary for now
+// Applies Config::GUI_SCALE to font size and widget metrics.
+void ApplyGuiScale()
 {
     ImGuiIO& io = ImGui::GetIO();
     io.Fonts->Clear();
-
-    // Jeden globalny font dla całego GUI.
     io.Fonts->AddFontDefault();
-
-    // Powiększa sam tekst.
     io.FontGlobalScale = Config::GUI_SCALE;
 
-    // Powiększa też odstępy, wysokości widgetów i padding.
     ImGuiStyle& style = ImGui::GetStyle();
     style.ScaleAllSizes(Config::GUI_SCALE);
 }
 
 // --- Initialization helpers ---
 bool InitializeWindow(Window::ControlPanelWindow& window) {
+    Sleep(100); // Small delay to prioritize the main game thread's window creation
     return Window::Create(window, L"DllStalker", L"DllStalker - Control Panel", OnWindowResize,
                           Config::DEFAULT_WINDOW_WIDTH, Config::DEFAULT_WINDOW_HEIGHT);
 }
@@ -93,11 +90,10 @@ void RunControlPanelMainLoop(const Window::ControlPanelWindow& window) {
             continue;
         }
 
-        // When auto-refresh is on, wake the loop ~10 times per second so the
-        // Fields tab's timer-driven refresh actually runs while the window is
-        // idle. Otherwise stay fully event-driven (INFINITE) for zero idle CPU.
+        // Poll ~10 Hz when timer-driven UI is active; otherwise wait on input (INFINITE).
         const bool wantsPeriodicTick =
-            state.fieldsAutoRefresh || !state.fieldWatch.entries.empty();
+            state.fieldsAutoRefresh || state.fieldWatch.HasActiveEntriesCount() != 0
+            || state.transformModel.liveRefresh;
         const DWORD idleWakeMs = wantsPeriodicTick ? 100u : INFINITE;
         if (Infra::WaitForRenderTriggerIfNeeded(requestRender, hadInputMessage, idleWakeMs)) {
             continue;
@@ -138,7 +134,6 @@ void CreateControlPanel() {
     Window::ControlPanelWindow window{};
     Infra::ImGuiContextRAII imguiGuard;
 
-    // Initialize phase
     if (!InitializeWindow(window)) {
         return;
     }

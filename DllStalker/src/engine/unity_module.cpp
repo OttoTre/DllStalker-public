@@ -49,6 +49,8 @@ bool UnityModule::ResolveExports() {
     exports.fnClassGetNamespace = (E::t_ClassGetNamespace)Resolve("class_get_namespace");
     exports.fnClassFromIndex    = (E::t_ClassFromIndex)(isIL2CPP ? Resolve("image_get_class") : Resolve("class_get"));
     exports.fnGetParent         = (E::t_GetParent)Resolve("class_get_parent");
+    exports.fnClassIsEnum       = (E::t_ClassIsEnum)Resolve("class_is_enum");
+    exports.fnClassEnumBasetype = (E::t_ClassEnumBasetype)Resolve("class_enum_basetype");
 
     // --- Collection support (shared) ---
     // Used by GetCollectionView to compute element stride. All three exist
@@ -83,6 +85,7 @@ bool UnityModule::ResolveExports() {
         // arg shapes in the UI.
         exports.fnIl2cppMethodGetParam = (E::t_Il2CppMethodGetParam)Resolve("method_get_param");
         exports.fnIl2cppStringNew      = (E::t_Il2CppStringNew)Resolve("string_new");
+        exports.fnClassFromType        = (E::t_ClassFromType)Resolve("class_from_il2cpp_type");
         if (!exports.fnFieldGetStaticAddr) {
             printf("[*] Fallback: Trying alternative export for field_get_static_terminate_data\n");
             exports.fnFieldGetStaticAddr = (E::t_FieldGetStaticAddr)Resolve("field_static_get_value");
@@ -110,6 +113,7 @@ bool UnityModule::ResolveExports() {
         // arguments. mono_string_new takes the active domain.
         exports.fnMonoSignatureGetParams = (E::t_MonoSigGetParams)Resolve("signature_get_params");
         exports.fnMonoStringNew          = (E::t_MonoStringNew)Resolve("string_new");
+        exports.fnClassFromType          = (E::t_ClassFromType)Resolve("class_from_mono_type");
 
         releaseEngineValid = (exports.fnCompileMethod != nullptr)
                           && (exports.fnAssemblyForeach != nullptr || exports.fnMonoAssemblyOpen != nullptr);

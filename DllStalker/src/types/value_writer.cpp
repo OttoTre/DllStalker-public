@@ -34,7 +34,7 @@ bool SetFieldValue(const Engine::FieldInfo& field, const std::string& newValue, 
         return Memory::TryWriteValue(field.valueAddress, b);
     }
     case Cat::STRING:
-        if (error) *error = "String editing not supported";
+        if (error) *error = "String editing is handled by FieldCatalog";
         return false;
     default:
         if (error) *error = "Unsupported type: " + field.type;

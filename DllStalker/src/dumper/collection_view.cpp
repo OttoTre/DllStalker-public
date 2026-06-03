@@ -88,13 +88,9 @@ std::vector<FieldInfo> CollectionView::GetCollectionView(const FieldInfo& field)
         if (!Memory::TryReadValue<uintptr_t>(field.valueAddress, arrayBase) || arrayBase == 0) {
             return view;
         }
-        if (!Memory::IsReadablePointer(reinterpret_cast<void*>(arrayBase + UnityArrayLayout::LengthOffset),
-                                       sizeof(size_t))) {
+        if (!Memory::TryReadValue(arrayBase + UnityArrayLayout::LengthOffset, length)) {
             return view;
         }
-        std::memcpy(&length,
-                    reinterpret_cast<void*>(arrayBase + UnityArrayLayout::LengthOffset),
-                    sizeof(size_t));
         elementTypeName = StripArraySuffix(field.type);
     }
     else {
@@ -132,14 +128,10 @@ std::vector<FieldInfo> CollectionView::GetCollectionView(const FieldInfo& field)
 
         // Cross-check against the underlying array's allocated capacity so
         // a corrupted _size can't make us walk past the buffer.
-        if (!Memory::IsReadablePointer(reinterpret_cast<void*>(arrayBase + UnityArrayLayout::LengthOffset),
-                                       sizeof(size_t))) {
+        size_t allocated = 0;
+        if (!Memory::TryReadValue(arrayBase + UnityArrayLayout::LengthOffset, allocated)) {
             return view;
         }
-        size_t allocated = 0;
-        std::memcpy(&allocated,
-                    reinterpret_cast<void*>(arrayBase + UnityArrayLayout::LengthOffset),
-                    sizeof(size_t));
         length = std::min<size_t>(static_cast<size_t>(logicalSize), allocated);
         elementTypeName = ExtractListElementName(field.type);
     }
@@ -172,15 +164,11 @@ std::vector<FieldInfo> CollectionView::GetCollectionView(const FieldInfo& field)
         // single sentinel row instead of guessing an offset. That's better
         // than silently producing misaligned reads.
         if (elementSize == kReferenceSlotSize && !m_resolver.module.exports.fnClassValueSize) {
-            view.push_back({
-                "<value-type elements>",
-                elementTypeName,
-                0,
-                0,
-                0,
-                false,
-                "engine missing class_value_size"
-            });
+            FieldInfo sentinel{};
+            sentinel.name         = "<value-type elements>";
+            sentinel.type         = elementTypeName;
+            sentinel.valueDisplay = "engine missing class_value_size";
+            view.push_back(std::move(sentinel));
             return view;
         }
     }
@@ -206,6 +194,9 @@ std::vector<FieldInfo> CollectionView::GetCollectionView(const FieldInfo& field)
         row.valueAddress = slotAddress;
         row.hasValue     = true;
         row.valueDisplay = Decode::DecodeFieldValue(elementTypeName, slotAddress, true);
+        if (row.valueDisplay == "null") {
+            row.valueDisplay = "[null]";
+        }
         view.push_back(std::move(row));
     }
 

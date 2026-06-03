@@ -5,6 +5,9 @@
 #include "MinHook.h"
 
 #include "presets/hook_preset.h"
+#ifdef ENABLE_DUMPER
+#include "types/memory_guard.h"
+#endif
 
 #include <mutex>
 #include <unordered_set>
@@ -53,6 +56,13 @@ bool InstallHook(LPVOID target, LPVOID detour, LPVOID* original, const char* nam
         printf("[!] Hook target is null: %s\n", name ? name : "<unnamed>");
         return false;
     }
+
+#ifdef ENABLE_DUMPER
+    if (!Engine::Memory::IsExecutablePointer(target)) {
+        printf("[!] Hook target not executable: %s at %p\n", name ? name : "<unnamed>", target);
+        return false;
+    }
+#endif
 
     const uintptr_t targetAddr = reinterpret_cast<uintptr_t>(target);
     if (!TryRegisterHookTarget(targetAddr)) {

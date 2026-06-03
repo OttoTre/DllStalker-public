@@ -11,9 +11,9 @@
 
 // Numeric / boolean field-write dispatch. Parses the user-typed string,
 // validates the target pointer is writable, then commits with TryWriteValue.
-// String, pointer, array, and list fields are intentionally rejected here:
-// editing them would either bypass GC bookkeeping (PTR / ARRAY / LIST) or
-// require a managed allocation (STRING) which is not implemented in v1.
+// System.String writes live in FieldCatalog (managed string_new + pointer
+// slot). Pointer, array, and list fields are rejected here: editing them
+// would bypass GC bookkeeping or are navigation targets, not scalars.
 namespace Engine::Write
 {
 // Centralized "parse number, write number" for any arithmetic T. On

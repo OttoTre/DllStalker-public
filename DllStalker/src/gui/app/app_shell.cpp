@@ -4,6 +4,7 @@
 
 #include "gui/app/app_shell.h"
 
+#include "gui/session_state.h"
 #include "gui/config.h"
 #include "gui/views/class_browser.h"
 #include "gui/views/dock/utilities_dock.h"
@@ -64,7 +65,7 @@ void BeginControlPanelFrame(HWND hwnd) {
 }
 
 void RenderControlPanelContent(ControlPanelSessionState& state) {
-    static CopyFeedbackState copyFeedback{};
+    static Views::CopyFeedbackState copyFeedback{};
 
     ImGuiWindowFlags window_flags = ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove
                                    | ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoScrollbar;
@@ -82,8 +83,8 @@ void RenderControlPanelContent(ControlPanelSessionState& state) {
     ImGui::End();
 }
 
-void RenderMainLayout(ControlPanelSessionState& state, CopyFeedbackState& copyFeedback) {
-    if (!state.imageLoadInProgress.load() && state.GetImageCacheSnapshot().empty()) {
+void RenderMainLayout(ControlPanelSessionState& state, Views::CopyFeedbackState& copyFeedback) {
+    if (!state.loaders.imageLoadInProgress.load() && state.GetImageCacheSnapshot().empty()) {
         state.StartImageLoad(state.dumper);
     }
 
@@ -95,7 +96,7 @@ void RenderMainLayout(ControlPanelSessionState& state, CopyFeedbackState& copyFe
     // image the UI is already pretending to have selected. Cleared after
     // one attempt -- a missing hint shouldn't scan every frame.
     if (state.pendingDefaultImageSelection
-        && !state.imageLoadInProgress.load()
+        && !state.loaders.imageLoadInProgress.load()
         && state.selectedImage == nullptr
         && state.dumper
         && state.imgSearchBuffer[0] != '\0') {

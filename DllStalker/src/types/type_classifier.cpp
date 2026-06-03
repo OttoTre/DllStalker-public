@@ -71,6 +71,8 @@ TypeCategory GetCategory(std::string_view type) {
         if (LooksLikeArray(sv)) return TypeCategory::ARRAY;
         if (LooksLikeList(sv))  return TypeCategory::LIST;
 
+        if (sv == "unityengine.vector3") return TypeCategory::VEC3;
+
         if (sv.find('*') != std::string_view::npos || sv.find('.') != std::string_view::npos)
             return TypeCategory::PTR;
     }
@@ -85,6 +87,8 @@ TypeCategory GetCategory(std::string_view type) {
         std::string_view sv(lowerBuf);
         if (LooksLikeArray(sv)) return TypeCategory::ARRAY;
         if (LooksLikeList(sv))  return TypeCategory::LIST;
+
+        if (sv == "unityengine.vector3") return TypeCategory::VEC3;
 
         if (lowerBuf.find('*') != std::string::npos || lowerBuf.find('.') != std::string::npos)
             return TypeCategory::PTR;

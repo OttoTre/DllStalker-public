@@ -2,13 +2,18 @@
 
 #include "pch.h"
 
-#include "gui/app/app_shell.h"
-#include "gui/session_state.h"
+#include "gui/views/copy_feedback_state.h"
+
+namespace Gui
+{
+struct ControlPanelSessionState;
+struct InspectorCache;
+}
 
 namespace Gui::Views
 {
 void RenderMethodsTab(const InspectorCache& inspectorSnapshot,
-                      AppShell::CopyFeedbackState& copyFeedback,
+                      CopyFeedbackState& copyFeedback,
                       bool inspectorLoadInProgress,
                       ControlPanelSessionState& state);
 } // namespace Gui::Views

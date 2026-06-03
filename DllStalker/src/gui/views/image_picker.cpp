@@ -4,6 +4,8 @@
 
 #include "gui/views/image_picker.h"
 
+#include "gui/session_state.h"
+
 #include "imgui.h"
 
 #include <string>
@@ -18,7 +20,7 @@ void RenderImageSelection(ControlPanelSessionState& state) {
     std::vector<Engine::ImageInfo> imageCacheSnapshot = state.GetImageCacheSnapshot();
     const char* activeImageLabel = state.imgSearchBuffer[0] ? state.imgSearchBuffer : "Select image...";
 
-    if (state.imageLoadInProgress.load()) {
+    if (state.loaders.imageLoadInProgress.load()) {
         ImGui::TextUnformatted("Loading images...");
     }
 
@@ -44,7 +46,7 @@ void RenderImageSelection(ControlPanelSessionState& state) {
         ImGui::EndCombo();
     }
 
-    if (ImGui::Button("Refresh Images", ImVec2(-1, 0)) && !state.imageLoadInProgress.load()) {
+    if (ImGui::Button("Refresh Images", ImVec2(-1, 0)) && !state.loaders.imageLoadInProgress.load()) {
         state.ClearImageCache();
         state.StartImageLoad(state.dumper);
         // If nothing is selected yet, re-arm the first-load reconciler so

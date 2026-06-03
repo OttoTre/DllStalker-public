@@ -2,6 +2,8 @@
 
 DllStalker is a C++20 internal DLL toolkit for Unity games (IL2CPP and Mono). It combines runtime API resolution, preset-based hook installation and optional debug tooling (GUI + console) for reverse-engineering workflows.
 
+![Gif snippet](DllStalker/docs/Snippet.gif)
+
 ## Core Goals
 
 - Resolve Unity runtime APIs dynamically (`il2cpp_*` / `mono_*`)
@@ -11,54 +13,63 @@ DllStalker is a C++20 internal DLL toolkit for Unity games (IL2CPP and Mono). It
 
 ## Main Components
 
-- **UnityResolver (`include/engine`, `src/engine`)**
+- **UnityResolver** (`include/unity_resolver.h`, `src/unity_resolver.cpp` → `include/engine/`, `src/engine/`)
   - Detects backend (`GameAssembly.dll` / `mono-2.0-bdwgc.dll`)
   - Resolves runtime exports dynamically
   - Exposes image/class/method/field lookup helpers
 
-- **Hook Services (`include/services`, `src/services`)**
-  - MinHook installation helpers
+- **UnityDumper** (`include/unity_dumper.h`, `src/unity_dumper.cpp` → `include/dumper/`, `src/dumper/`)
+  - Catalogs, field/method invocation, collection views, SDK export (`ENABLE_DUMPER` only)
+
+- **Hook Services** (`include/services/`, `src/services/`)
+  - MinHook installation helpers (`Hooks::`)
   - Preset selection and installation entry point
   - Main-thread dispatch bridge for safe managed invokes (debug tooling path)
 
-- **Presets (`include/presets`, `src/presets`)**
+- **Types** (`include/types/`, `src/types/`)
+  - POD structs, `memory_guard`, value decode/write, type classification
+
+- **Presets** (`include/presets/`, `src/presets/`)
   - Each preset lives in its own `.cpp` and self-registers
   - Installer chooses one preset name and applies all hooks from that preset
 
-- **GUI + Dumper (`include/gui`, `src/gui`, `include/dumper`, `src/dumper`)**
-  - ImGui control panel and async state loaders
-  - Runtime metadata browsing, field analysis, live watch/plot, and method call logging
-  - Intended primarily for debug/research sessions
+- **GUI** (`include/gui/`, `src/gui/`)
+  - Win32 + D3D11 + Dear ImGui control panel
+  - Runtime metadata browsing, field analysis, transform edit, live watch/plot, call logging, SDK export dock
 
 ## Build Notes
 
-`ENABLE_DUMPER` in `DllStalker/include/pch.h` controls debug tooling paths.
+`ENABLE_DUMPER` in `include/pch.h` is defined when `_DEBUG` or `DEBUGRELEASE`. It gates the GUI, dumper and related `types/` code.
 
-### Release Build (production hook payload)
-Use **Release** when you want a lean DLL focused on your defined hooks.
+| Config | Dumper GUI |
+| --- | --- |
+| **DebugRelease \| x64** | Yes — optimized; preferred daily driver |
+| **Debug \| x64** | Yes — full GUI + native stepping/breakpoints |
+| **Release \| x64** | No — hooks and engine only |
+
+### Release (production hook payload)
+
+Use **Release \| x64** for a lean DLL focused on preset hooks.
 
 - Optimized code generation
 - Smaller/faster runtime footprint
-- No extra debug tooling path by default
+- No GUI or dumper paths
 - Best choice for stable, repeatable hook deployment
 
-In short: **Release = hook execution, optimized, minimal overhead**.
+### Debug (development and investigation)
 
-### Debug Build (development and investigation)
-Use **Debug** when you are developing or validating behavior.
+Use **Debug \| x64** when you need the control panel plus native debugging.
 
-- Easier debugging and iteration
-- Optional GUI flow and runtime invoke tooling paths
-- Console output enabled for live feedback
-- Better visibility into initialization and hook state
-
-In short: **Debug = development visibility + tooling**.
+- Full GUI and runtime invoke tooling
+- Console output for live feedback
+- Easier iteration on hooks and inspector behavior
 
 ### DebugRelease (recommended for GUI work)
-Use **DebugRelease | x64** when developing or smoke-testing the control panel with dumper tooling enabled.
 
-- Optimized like Release, with `ENABLE_DUMPER` paths available (see `include/pch.h`)
-- Typical day-to-day build for inspector, dock tabs, and call logger validation
+Use **DebugRelease \| x64** when smoke-testing the control panel.
+
+- Optimized like Release, with all `ENABLE_DUMPER` paths enabled
+- Typical build for inspector, dock tabs, transform tab and call logger validation
 
 ## Binary Placement
 
@@ -94,18 +105,21 @@ Why this matters:
 
 ## GUI Capabilities
 
-The Debug GUI is designed for runtime exploration, controlled edits, and safe invocation.
+The debug GUI is for runtime exploration, controlled edits and safe invocation.
 
-**Layout:** left metadata browser; right workspace (**Methods | Fields | Console**); bottom **Global Utilities Dock** (**Bookmarks → History → Watcher → Logger**). Dock tabs restore navigation or show live tooling; they do not replace the main inspector models.
+**First step:** click **Init Dumper Engine** in the control panel before browsing assemblies.
 
-### Global Utilities Dock
+**Layout:** left metadata browser (~30%); right workspace (**Methods | Fields | Transform**); bottom **Utilities Dock** (**Bookmarks → History → Watcher → Logger → Exporter**). Dock tabs restore navigation or host live tooling; they do not replace the main inspector models.
+
+### Utilities Dock
 
 | Tab | Purpose |
-| --- | ------- |
+| --- | --- |
 | **Bookmarks** | Saved inspector locations; restore with shared navigation validation |
 | **History** | Navigation timeline and audit rows (read-only; distinct from call log) |
 | **Watcher** | Live field watchlist; inner **Watchlist** / **Charts** for numeric plots |
-| **Logger** | Active native call hooks and rolling call log (args-only) |
+| **Logger** | Inner **Hooks** / **Log**; native call hooks and rolling args-only call log |
+| **Exporter** | Export field offsets (optional methods/enums) to C++ `.h` or C# `.cs` beside the injected DLL |
 
 From **Watcher** or **History**, **Jump** restores the workspace to the linked location.
 
@@ -123,12 +137,12 @@ From **Watcher** or **History**, **Jump** restores the workspace to the linked l
 
 ### Instance discovery (two methods)
 
-In the Fields tab, **Find Instances** supports two discovery modes:
+In the **Fields** tab, **Find Instances** supports two discovery modes:
 
-1. **Static discovery** – scans static-instance candidates
-2. **Live API** – uses Unity live object lookup APIs
+1. **Static discovery** — scans static-instance candidates
+2. **Live API** — uses Unity live object lookup APIs
 
-You can switch source mode, run discovery and pick the active instance from the candidates combo.
+Switch source mode, run discovery and pick the active instance from the candidates combo.
 
 ### Field analysis and watch
 
@@ -137,6 +151,8 @@ On the **Fields** tab (analysis toolbar):
 - **Snapshot** baseline → **Show changes** tints rows when values drift (green/red/yellow).
 - **Compare two instances** — class-level A vs B from root instance finds; **Current path** mode for drilled paths and collection element index.
 - **`[W]`** — add/remove a field on the **Watcher** dock tab (live reads; plottable numerics can open **Charts**).
+- **`[T]`** — focus **Transform** on a Transform/GameObject pointer field.
+- **Enum fields** — decoded literals; editable via combo when supported.
 
 ### Methods tab (Run and Log)
 
@@ -158,39 +174,47 @@ For zero-argument methods, execution is immediate. For methods with arguments, t
 - Manage hooks on **Logger → Hooks**; **Clear log** on the **Log** subtab only.
 - Eligibility matches the invoke path where possible: known signature, primitive/string/pointer params, ≤3 instance args or ≤4 static register args. Mono methods with unknown params stay disabled.
 
+### Transform tab
+
+Inspect and edit Transform/GameObject state via Unity API invokers (not raw offset reads):
+
+- **Sources** — Self, implicit transform/gameObject and field pointers
+- **Live** — periodic refetch; **Edit lock** — pause live refresh while editing
+- **Fetch / apply** — main-thread getters/setters for local/world position, rotation, scale, activeSelf
+- Requires the same main-thread capture as **Run** on Methods
+
 ### Field editing
 
-Simple field editing is supported for primitive categories (numeric + boolean).
+Simple field editing is supported for primitive categories (numeric + boolean) and enums (combo).
 
 - Typical workflow: edit value in-place, press **OK**, auto-refresh verifies the write.
 - String/reference/container direct overwrite is intentionally restricted in this path.
 
 ### Navigation (Breadcrumbs)
 
-You can navigate through object graphs directly from field values:
+Navigate object graphs directly from field values:
 
-- **Pointer fields**: drill into referenced object
-- **Array/List fields**: open synthesized collection view (vector-like navigation)
-- Breadcrumbs let you jump back to any previous level
-
-This enables step-by-step exploration of nested pointers and collections without leaving the current inspector context.
+- **Pointer fields** — drill into referenced object
+- **Array/List fields** — open synthesized collection view (vector-like navigation)
+- **Breadcrumbs** — jump back to any previous level
 
 ## Quick Workflows
 
 ### Workflow 1: Image → Class → Instance → Run method
 
-1. Open **Image Selection** and choose the target image.
-2. Use **Class Browser** filter to find your class.
-3. In **Fields**, click **Find Instances** and choose source mode (Static discovery / Live API).
-4. Pick an instance from the candidates combo.
-5. Go to **Methods** and click **Run**:
+1. Click **Init Dumper Engine**.
+2. Open **Image Selection** and choose the target image.
+3. Use **Class Browser** filter to find your class.
+4. In **Fields**, click **Find Instances** and choose source mode (Static discovery / Live API).
+5. Pick an instance from the candidates combo.
+6. Go to **Methods** and click **Run**:
    - immediate call for 0-arg methods,
    - arg modal for methods with parameters.
 
 ### Workflow 2: Edit a primitive field and verify
 
 1. Select image, class and active instance.
-2. In **Fields**, edit a primitive value (numeric/bool).
+2. In **Fields**, edit a primitive or enum value.
 3. Click **OK**.
 4. Use **Refresh Fields** (or auto-refresh) to confirm the new value.
 
@@ -203,7 +227,7 @@ This enables step-by-step exploration of nested pointers and collections without
 
 ### Workflow 4: Watch and plot a numeric field
 
-1. Select image, class, and instance; open **Fields**.
+1. Select image, class and instance; open **Fields**.
 2. Toggle **`[W]`** on a numeric field.
 3. Open **Utilities → Watcher** for live values; use **Plot** on plottable rows to switch to **Charts**.
 
@@ -214,15 +238,29 @@ This enables step-by-step exploration of nested pointers and collections without
 3. Trigger the method in-game; open **Utilities → Logger → Log** to tail lines.
 4. Use **Hooks** to **Remove** hooks or toggle **Log** off on Methods; **Clear log** clears lines only.
 
+### Workflow 6: Edit transform via Transform tab
+
+1. Select image, class and instance.
+2. Open **Transform** or press **`[T]`** on a Transform/GameObject field in **Fields**.
+3. Select a source, wait for fetch (main thread must be captured).
+4. Edit values and apply; use **Live** for periodic refresh.
+
+### Workflow 7: Export SDK offsets
+
+1. Browse to the desired scope (active class, entire image or bookmarked classes).
+2. Open **Utilities → Exporter**.
+3. Choose format (C++ or C#), options and filename; export.
+4. Output is written next to the injected `version.dll`.
+
 ## Creating a New Preset (Example)
 
-Preset system is self-registration based: add a new `.cpp` preset file and it becomes available automatically.
+Presets self-register at static init: add a new `.cpp` under `src/presets/` and list it in `DllStalker.vcxproj`.
 
 ### 1) Create file
 
-Create a new file, for example:
+Example path:
 
-- `DllStalker/src/presets/example/example.cpp`
+- `src/presets/example/example.cpp`
 
 ### 2) Implement hooks + install function
 
@@ -259,53 +297,78 @@ const bool kRegistered = (Presets::Register(kPreset), true); // <---- Function c
 
 ### 3) Select it in installer
 
-In `DllStalker/src/services/hook_installer.cpp`, set:
+In `src/services/hook_installer.cpp`, set:
 
-- `kSelectedPresetName = "Example";`
+- `kSelectedPresetName = "Example";` — install that preset's hooks
+- `kSelectedPresetName = "-";` — **no preset hooks** (default; avoids colliding with GUI call-logger hooks)
 
 ### 4) Build and verify
 
-- Build Debug (for logs) or Release (for target payload)
-- Inject/load DLL
-- Confirm in console that preset was found and installed
+- Build **DebugRelease \| x64** or **Debug \| x64** for console logs + GUI
+- Build **Release \| x64** for hook-only payload
+- Deploy `version.dll` and confirm preset install messages in the console
 
 ## Runtime Flow
 
-1. `DllMain` starts bootstrap thread.
+1. `DllMain` starts bootstrap thread (and GUI thread when dumper is enabled).
 2. `Engine::Unity.Init()` resolves runtime exports.
-3. Console is created (for runtime logs).
-4. `Hooks::StartHooking()` initializes MinHook and installs selected preset.
-5. If debug tooling is enabled, GUI thread starts and uses dumper modules.
+3. Console is allocated for runtime logs.
+4. `MainThreadDispatcher::InstallRuntimeInvokeHook()` (dumper builds) — non-fatal if it fails.
+5. `Hooks::StartHooking()` initializes MinHook and installs the selected preset.
+6. GUI thread runs the control panel; user clicks **Init Dumper Engine** to create `UnityDumper` and load images.
 
 ## Repository Layout (high level)
 
 ```text
 DllStalker/
-├── DllStalker/
-│   ├── include/
-│   │   ├── engine/
-│   │   ├── dumper/
-│   │   ├── gui/
-│   │   ├── presets/
-│   │   ├── services/
-│   │   └── types/
-│   ├── src/
-│   │   ├── engine/
-│   │   ├── dumper/
-│   │   ├── gui/
-│   │   ├── presets/
-│   │   ├── services/
-│   │   └── types/
-│   └── DllStalker.vcxproj
-└── docs/
+├── include/
+│   ├── engine/
+│   ├── dumper/
+│   ├── gui/
+│   │   ├── app/
+│   │   ├── infra/
+│   │   ├── state/
+│   │   │   ├── core/
+│   │   │   ├── navigation/
+│   │   │   ├── history/
+│   │   │   ├── fields/
+│   │   │   ├── runtime/
+│   │   │   └── transform/
+│   │   └── views/
+│   │       ├── fields/
+│   │       ├── transform/
+│   │       └── dock/
+│   ├── presets/
+│   ├── services/
+│   └── types/
+└── src/
+    ├── engine/
+    ├── dumper/
+    ├── gui/
+    │   ├── app/
+    │   ├── infra/
+    │   ├── state/
+    │   │   ├── core/
+    │   │   ├── navigation/
+    │   │   ├── history/
+    │   │   ├── fields/
+    │   │   ├── runtime/
+    │   │   └── transform/
+    │   └── views/
+    │       ├── fields/
+    │       ├── transform/
+    │       └── dock/
+    ├── presets/
+    ├── services/
+    └── types/
 ```
 
 ## Troubleshooting
 
 ### "Preset not found"
 
-- Check `kSelectedPresetName` in `DllStalker/src/services/hook_installer.cpp`
-- Ensure your preset file is compiled and self-registers via `Presets::Register(...)`
+- Check `kSelectedPresetName` in `src/services/hook_installer.cpp` (must match a registered name, not `"-"`)
+- Ensure the preset `.cpp` is in `DllStalker.vcxproj` and calls `Presets::Register(...)`
 
 ### "Failed to find target assembly"
 
@@ -337,22 +400,28 @@ This is expected behavior:
 
 ### Logger: Log disabled or no lines
 
-- **Log** disabled: no native address, unknown Mono params, unsupported arg types, or too many register arguments.
-- **No lines:** hook not armed, method not called yet, or hook removed; check **Logger → Hooks**.
+- **Log** disabled: no native address, unknown Mono params, unsupported arg types or too many register arguments.
+- **No lines:** hook not armed, method not called yet or hook removed; check **Logger → Hooks**.
 - **Cap / install errors:** max **16** hooks; duplicate native target or MinHook install failure shows a status toast.
 
 ## ⚠️ Important Disclaimer & Legal Notice
 
 **This project is strictly for educational, research and local development debugging purposes.**
+
 ### 1. No Anti-Cheat Bypasses
+
 This tool is a standard user-mode utility. It **does not** contain any kernel-mode bypasses, driver exploits, signature cloaking or thread-hiding mechanisms.
+
 * Running or injecting this tool into games protected by modern kernel-level anti-cheats (such as **Easy Anti-Cheat, BattlEye, Ricochet, Vanguard or similar**) **WILL result in an immediate, automated and permanent ban.**
 * If you are a game developer testing your own project with this tool, you **must disable your game's anti-cheat modules** in your compilation configuration before attaching it.
 
 ### 2. Stability & Memory Safety Disclaimer
+
 Because this tool performs direct memory queries and interacts natively with runtime objects (IL2CPP/Mono) via pointers:
+
 * Invoking methods or modifying unaligned fields can cause immediate process instability, memory access violations or fatal game crashes.
 * Use this tool entirely at your own risk. The author(s) are not responsible for lost game data, corrupted saves or account restrictions.
 
 ### 3. Fair Use & Purpose
+
 This tool does not modify game binaries on disk, distribute protected assets or facilitate online matchmaking manipulation. It is designed to help developers and security researchers analyze object structures and runtime behavior in controlled, offline or authorized testing environments.

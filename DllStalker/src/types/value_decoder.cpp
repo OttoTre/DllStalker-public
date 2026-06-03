@@ -4,8 +4,11 @@
 
 #include "types/value_decoder.h"
 
+#include <algorithm>
+#include <cctype>
 #include <cstdio>
 #include <cstring>
+#include <string_view>
 #include <vector>
 
 #include "types/memory_guard.h"
@@ -17,6 +20,8 @@ namespace
 {
 constexpr int32_t UNITY_STRING_LAYOUT_OFFSET = 0x10; // Offset to the length field
 constexpr int32_t UNITY_STRING_BUFFER_OFFSET = 0x14; // Offset to the UTF-16 buffer
+constexpr int32_t kMaxManagedStringPreviewChars = 1024;
+constexpr std::string_view kTruncatedSuffix = "...(truncated)";
 } // namespace
 
 namespace
@@ -34,38 +39,91 @@ std::string Utf16ObjectToQuotedUtf8(uintptr_t managedStringPtr) {
     if (length < 0) {
         return "\"\"";
     }
-    if (length > 2048) {
-        length = 2048;
+    if (length == 0) {
+        return "\"\"";
+    }
+
+    bool truncated = false;
+    if (length > kMaxManagedStringPreviewChars) {
+        length = kMaxManagedStringPreviewChars;
+        truncated = true;
     }
 
     std::vector<wchar_t> utf16Buffer(static_cast<size_t>(length));
     const size_t byteSize = static_cast<size_t>(length) * sizeof(wchar_t);
 
-    if (!Memory::IsReadablePointer(reinterpret_cast<void*>(managedStringPtr + UNITY_STRING_BUFFER_OFFSET),
-                                  byteSize)) {
+    if (!Memory::TryReadBytes(managedStringPtr + UNITY_STRING_BUFFER_OFFSET,
+                              utf16Buffer.data(),
+                              byteSize)) {
         return "\"<unreadable>\"";
     }
 
-    std::memcpy(utf16Buffer.data(),
-                reinterpret_cast<void*>(managedStringPtr + UNITY_STRING_BUFFER_OFFSET),
-                byteSize);
-
     std::string utf8Result;
-    utf8Result.reserve(static_cast<size_t>(length));
+    utf8Result.reserve(static_cast<size_t>(length) + kTruncatedSuffix.size() + 2);
 
-    for (wchar_t wc : utf16Buffer) {
-        if (wc < 0x80) {
-            utf8Result += static_cast<char>(wc);
+    auto appendUtf8 = [&](char32_t cp) {
+        if (cp < 0x80) {
+            utf8Result += static_cast<char>(cp);
         }
-        else if (wc < 0x800) {
-            utf8Result += static_cast<char>(0xC0 | (wc >> 6));
-            utf8Result += static_cast<char>(0x80 | (wc & 0x3F));
+        else if (cp < 0x800) {
+            utf8Result += static_cast<char>(0xC0 | (cp >> 6));
+            utf8Result += static_cast<char>(0x80 | (cp & 0x3F));
+        }
+        else if (cp < 0x10000) {
+            utf8Result += static_cast<char>(0xE0 | (cp >> 12));
+            utf8Result += static_cast<char>(0x80 | ((cp >> 6) & 0x3F));
+            utf8Result += static_cast<char>(0x80 | (cp & 0x3F));
         }
         else {
-            utf8Result += static_cast<char>(0xE0 | (wc >> 12));
-            utf8Result += static_cast<char>(0x80 | ((wc >> 6) & 0x3F));
-            utf8Result += static_cast<char>(0x80 | (wc & 0x3F));
+            utf8Result += static_cast<char>(0xF0 | (cp >> 18));
+            utf8Result += static_cast<char>(0x80 | ((cp >> 12) & 0x3F));
+            utf8Result += static_cast<char>(0x80 | ((cp >> 6) & 0x3F));
+            utf8Result += static_cast<char>(0x80 | (cp & 0x3F));
         }
+    };
+
+    for (size_t i = 0; i < utf16Buffer.size(); ++i) {
+        char32_t cp = static_cast<uint16_t>(utf16Buffer[i]);
+
+        if (cp >= 0xD800 && cp <= 0xDBFF) {
+            if (i + 1 >= utf16Buffer.size()) {
+                utf8Result += '?';
+                continue;
+            }
+
+            const uint16_t lo = static_cast<uint16_t>(utf16Buffer[i + 1]);
+            if (lo < 0xDC00 || lo > 0xDFFF) {
+                utf8Result += '?';
+                continue;
+            }
+
+            cp = 0x10000 + ((cp - 0xD800) << 10) + (lo - 0xDC00);
+            ++i;
+        }
+        else if (cp >= 0xDC00 && cp <= 0xDFFF) {
+            utf8Result += '?';
+            continue;
+        }
+
+        if (cp == '\t') {
+            utf8Result += "\\t";
+        }
+        else if (cp == '\n') {
+            utf8Result += "\\n";
+        }
+        else if (cp == '\r') {
+            utf8Result += "\\r";
+        }
+        else if (cp < 0x20 || cp == 0x7F) {
+            utf8Result += '?';
+        }
+        else {
+            appendUtf8(cp);
+        }
+    }
+
+    if (truncated) {
+        utf8Result.append(kTruncatedSuffix);
     }
 
     return "\"" + utf8Result + "\"";
@@ -188,6 +246,17 @@ std::string DecodeFieldValue(const std::string& fieldType, uintptr_t valueAddres
     }
     case Cat::STRING:
         return DecodeManagedString(valueAddress);
+    case Cat::VEC3: {
+        // Vector3 is an inline value type: three consecutive floats at the
+        // field address (no indirection, no managed object header).
+        float x, y, z;
+        if (!Memory::TryReadValue(valueAddress,              x)) return "??";
+        if (!Memory::TryReadValue(valueAddress + sizeof(float), y)) return "??";
+        if (!Memory::TryReadValue(valueAddress + 2 * sizeof(float), z)) return "??";
+        char buf[64];
+        snprintf(buf, sizeof(buf), "(%.3f, %.3f, %.3f)", x, y, z);
+        return buf;
+    }
     case Cat::PTR: {
         uintptr_t v;
         if (!Memory::TryReadValue(valueAddress, v)) return "??";
@@ -204,11 +273,8 @@ std::string DecodeFieldValue(const std::string& fieldType, uintptr_t valueAddres
         if (!Memory::TryReadValue(valueAddress, arrayPtr)) return "??";
         if (arrayPtr == 0) return "null";
         constexpr uintptr_t kArrayLengthOffset = 0x18;
-        if (!Memory::IsReadablePointer(reinterpret_cast<void*>(arrayPtr + kArrayLengthOffset), sizeof(size_t))) {
-            return "??";
-        }
         size_t length = 0;
-        std::memcpy(&length, reinterpret_cast<void*>(arrayPtr + kArrayLengthOffset), sizeof(size_t));
+        if (!Memory::TryReadValue(arrayPtr + kArrayLengthOffset, length)) return "??";
         // Generous sanity ceiling: anything past ~100M elements is patently
         // a garbage read (would be 800MB+ of pointers) and we'd rather show
         // "??" than a 20-digit fantasy length. The dumper has its own,
@@ -235,6 +301,47 @@ std::string DecodeFieldValue(const std::string& fieldType, uintptr_t valueAddres
     default:
         return "-";
     }
+}
+
+namespace
+{
+void TrimWhitespaceInPlace(std::string& s) {
+    while (!s.empty() && std::isspace(static_cast<unsigned char>(s.front()))) {
+        s.erase(s.begin());
+    }
+    while (!s.empty() && std::isspace(static_cast<unsigned char>(s.back()))) {
+        s.pop_back();
+    }
+}
+
+bool EqualsIgnoreCase(std::string_view a, std::string_view b) {
+    if (a.size() != b.size()) {
+        return false;
+    }
+    for (size_t i = 0; i < a.size(); ++i) {
+        if (std::tolower(static_cast<unsigned char>(a[i]))
+            != std::tolower(static_cast<unsigned char>(b[i]))) {
+            return false;
+        }
+    }
+    return true;
+}
+} // namespace
+
+std::string StripQuotesForFieldEdit(std::string_view display) {
+    if (display.size() >= 2 && display.front() == '"' && display.back() == '"') {
+        return std::string(display.substr(1, display.size() - 2));
+    }
+    return std::string(display);
+}
+
+std::string NormalizeStringFieldInput(std::string_view raw) {
+    std::string trimmed = StripQuotesForFieldEdit(raw);
+    TrimWhitespaceInPlace(trimmed);
+    if (trimmed.empty() || EqualsIgnoreCase(trimmed, "null")) {
+        return {};
+    }
+    return trimmed;
 }
 } // namespace Engine::Decode
 

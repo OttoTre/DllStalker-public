@@ -4,6 +4,7 @@
 
 #include "gui/views/class_browser.h"
 
+#include "gui/session_state.h"
 #include "gui/infra/search_filter.h"
 
 #include "imgui.h"
@@ -18,7 +19,7 @@ void RenderClassBrowser(ControlPanelSessionState& state) {
 
     std::vector<Engine::ClassInfo> classCacheSnapshot = state.GetClassCacheSnapshot();
 
-    if (state.classLoadInProgress.load()) {
+    if (state.loaders.classLoadInProgress.load()) {
         ImGui::TextUnformatted("Loading classes...");
     }
 

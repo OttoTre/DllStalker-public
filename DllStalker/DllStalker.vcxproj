@@ -1,4 +1,4 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="utf-8"?>
 <Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup Label="ProjectConfigurations">
     <ProjectConfiguration Include="DebugRelease|Win32">
@@ -235,6 +235,7 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClInclude Include="include\dumper\sdk_exporter.h" />
     <ClInclude Include="include\framework.h" />
     <ClInclude Include="include\gui\config.h" />
     <ClInclude Include="include\gui\control_panel.h" />
@@ -244,21 +245,31 @@
     <ClInclude Include="include\gui\infra\search_filter.h" />
     <ClInclude Include="include\gui\session_state.h" />
     <ClInclude Include="include\gui\app\app_shell.h" />
+    <ClInclude Include="include\gui\state\transform\transform_internal.h" />
+    <ClInclude Include="include\gui\state\transform\transform_model.h" />
     <ClInclude Include="include\gui\views\error_modals.h" />
     <ClInclude Include="include\gui\views\image_picker.h" />
     <ClInclude Include="include\gui\views\class_browser.h" />
     <ClInclude Include="include\gui\views\inspector_frame.h" />
     <ClInclude Include="include\gui\views\breadcrumb_bar.h" />
+    <ClInclude Include="include\gui\views\copy_feedback_state.h" />
+    <ClInclude Include="include\gui\views\dispatch_status.h" />
     <ClInclude Include="include\gui\views\methods_tab.h" />
     <ClInclude Include="include\gui\views\invoke_args_modal.h" />
     <ClInclude Include="include\gui\views\fields_tab.h" />
-    <ClInclude Include="include\gui\views\console_tab.h" />
+    <ClInclude Include="include\gui\views\fields\field_analysis_toolbar.h" />
+    <ClInclude Include="include\gui\views\fields\field_compare_modal.h" />
+    <ClInclude Include="include\gui\views\fields\field_edit_cells.h" />
+    <ClInclude Include="include\gui\views\dock\exporter_tab.h" />
     <ClInclude Include="include\gui\views\dock\bookmarks_tab.h" />
     <ClInclude Include="include\gui\views\dock\watcher_tab.h" />
     <ClInclude Include="include\gui\views\dock\call_logger_tab.h" />
     <ClInclude Include="include\gui\views\dock\history_tab.h" />
     <ClInclude Include="include\gui\views\dock\navigation_status_banner.h" />
     <ClInclude Include="include\gui\views\dock\utilities_dock.h" />
+    <ClInclude Include="include\gui\views\transform\transform_editor_panel.h" />
+    <ClInclude Include="include\gui\views\transform\transform_sources_panel.h" />
+    <ClInclude Include="include\gui\views\transform_tab.h" />
     <ClInclude Include="include\gui\window.h" />
     <ClInclude Include="include\services\hook_installer.h" />
     <ClInclude Include="include\services\call_log_types.h" />
@@ -282,26 +293,26 @@
     <ClInclude Include="include\dumper\static_instance_finder.h" />
     <ClInclude Include="include\dumper\live_object_finder.h" />
     <ClInclude Include="include\dumper\method_invoker.h" />
-    <ClInclude Include="include\dumper\diagnostics.h" />
-    <ClInclude Include="include\dumper\console_dumper.h" />
-    <ClInclude Include="include\gui\state\image_cache_model.h" />
-    <ClInclude Include="include\gui\state\class_cache_model.h" />
-    <ClInclude Include="include\gui\state\inspector_model.h" />
-    <ClInclude Include="include\gui\state\edit_buffer_store.h" />
-    <ClInclude Include="include\gui\state\walker_controller.h" />
-    <ClInclude Include="include\gui\state\invoke_request_queue.h" />
-    <ClInclude Include="include\gui\state\async_loader_set.h" />
-    <ClInclude Include="include\gui\state\history_steady_time.h" />
-    <ClInclude Include="include\gui\state\history_validation.h" />
-    <ClInclude Include="include\gui\state\field_path_resolver.h" />
-    <ClInclude Include="include\gui\state\field_snapshot_model.h" />
-    <ClInclude Include="include\gui\state\field_watch_model.h" />
-    <ClInclude Include="include\gui\state\call_log_model.h" />
-    <ClInclude Include="include\gui\state\inspector_bookmarks_model.h" />
-    <ClInclude Include="include\gui\state\inspector_history_model.h" />
-    <ClInclude Include="include\gui\state\inspector_history_types.h" />
-    <ClInclude Include="include\gui\state\inspector_navigation_snapshot.h" />
-    <ClInclude Include="include\gui\state\inspector_navigation_feedback.h" />
+    <ClInclude Include="include\dumper\invoke_param_policy.h" />
+    <ClInclude Include="include\gui\state\core\image_cache_model.h" />
+    <ClInclude Include="include\gui\state\core\class_cache_model.h" />
+    <ClInclude Include="include\gui\state\core\inspector_model.h" />
+    <ClInclude Include="include\gui\state\core\edit_buffer_store.h" />
+    <ClInclude Include="include\gui\state\core\enum_literal_cache.h" />
+    <ClInclude Include="include\gui\state\navigation\walker_controller.h" />
+    <ClInclude Include="include\gui\state\runtime\invoke_request_queue.h" />
+    <ClInclude Include="include\gui\state\runtime\async_loader_set.h" />
+    <ClInclude Include="include\gui\state\navigation\history_steady_time.h" />
+    <ClInclude Include="include\gui\state\navigation\history_validation.h" />
+    <ClInclude Include="include\gui\state\fields\field_path_resolver.h" />
+    <ClInclude Include="include\gui\state\fields\field_snapshot_model.h" />
+    <ClInclude Include="include\gui\state\fields\field_watch_model.h" />
+    <ClInclude Include="include\gui\state\runtime\call_log_model.h" />
+    <ClInclude Include="include\gui\state\history\inspector_bookmarks_model.h" />
+    <ClInclude Include="include\gui\state\history\inspector_history_model.h" />
+    <ClInclude Include="include\gui\state\history\inspector_history_types.h" />
+    <ClInclude Include="include\gui\state\navigation\inspector_navigation_snapshot.h" />
+    <ClInclude Include="include\gui\state\navigation\inspector_navigation_feedback.h" />
     <ClInclude Include="include\types\dumper_types.h" />
     <ClInclude Include="include\types\memory_guard.h" />
     <ClInclude Include="include\types\type_classifier.h" />
@@ -311,6 +322,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\dllmain.cpp" />
+    <ClCompile Include="src\dumper\sdk_exporter.cpp" />
     <ClCompile Include="src\gui\control_panel.cpp" />
     <ClCompile Include="src\gui\infra\dx11_renderer.cpp" />
     <ClCompile Include="src\gui\infra\message_pump.cpp" />
@@ -323,20 +335,34 @@
     <ClCompile Include="src\gui\views\inspector_frame.cpp" />
     <ClCompile Include="src\gui\views\breadcrumb_bar.cpp" />
     <ClCompile Include="src\gui\views\methods_tab.cpp" />
+    <ClCompile Include="src\gui\views\dispatch_status.cpp" />
     <ClCompile Include="src\gui\views\invoke_args_modal.cpp" />
     <ClCompile Include="src\gui\views\fields_tab.cpp" />
-    <ClCompile Include="src\gui\views\console_tab.cpp" />
+    <ClCompile Include="src\gui\views\fields\field_analysis_toolbar.cpp" />
+    <ClCompile Include="src\gui\views\fields\field_compare_modal.cpp" />
+    <ClCompile Include="src\gui\views\fields\field_edit_cells.cpp" />
+    <ClCompile Include="src\gui\views\dock\exporter_tab.cpp" />
     <ClCompile Include="src\gui\views\dock\bookmarks_tab.cpp" />
     <ClCompile Include="src\gui\views\dock\history_tab.cpp" />
     <ClCompile Include="src\gui\views\dock\watcher_tab.cpp" />
     <ClCompile Include="src\gui\views\dock\call_logger_tab.cpp" />
     <ClCompile Include="src\gui\views\dock\navigation_status_banner.cpp" />
     <ClCompile Include="src\gui\views\dock\utilities_dock.cpp" />
+    <ClCompile Include="src\gui\state\transform\transform_discovery.cpp" />
+    <ClCompile Include="src\gui\state\transform\transform_fetch_apply.cpp" />
+    <ClCompile Include="src\gui\state\transform\transform_model.cpp" />
+    <ClCompile Include="src\gui\state\transform\transform_unity_helpers.cpp" />
+    <ClCompile Include="src\gui\views\transform\transform_editor_panel.cpp" />
+    <ClCompile Include="src\gui\views\transform\transform_sources_panel.cpp" />
+    <ClCompile Include="src\gui\views\transform_tab.cpp" />
     <ClCompile Include="src\gui\window.cpp" />
     <ClCompile Include="src\services\hook_installer.cpp" />
     <ClCompile Include="src\services\call_log_types.cpp" />
     <ClCompile Include="src\services\call_log_hooks.cpp" />
     <ClCompile Include="src\presets\preset_registry.cpp" />
+    <ClCompile Include="src\presets\dane\dane.cpp" />
+    <ClCompile Include="src\presets\knight\knight.cpp" />
+    <ClCompile Include="src\presets\subjects\subjects.cpp" />
     <ClCompile Include="src\unity_resolver.cpp" />
     <ClCompile Include="src\engine\unity_module.cpp" />
     <ClCompile Include="src\engine\image_enumerator.cpp" />
@@ -350,24 +376,23 @@
     <ClCompile Include="src\dumper\static_instance_finder.cpp" />
     <ClCompile Include="src\dumper\live_object_finder.cpp" />
     <ClCompile Include="src\dumper\method_invoker.cpp" />
-    <ClCompile Include="src\dumper\diagnostics.cpp" />
-    <ClCompile Include="src\dumper\console_dumper.cpp" />
-    <ClCompile Include="src\gui\state\image_cache_model.cpp" />
-    <ClCompile Include="src\gui\state\class_cache_model.cpp" />
-    <ClCompile Include="src\gui\state\inspector_model.cpp" />
-    <ClCompile Include="src\gui\state\async_loader_set.cpp" />
-    <ClCompile Include="src\gui\state\walker_controller.cpp" />
-    <ClCompile Include="src\gui\state\invoke_request_queue.cpp" />
-    <ClCompile Include="src\gui\state\history_validation.cpp" />
-    <ClCompile Include="src\gui\state\field_path_resolver.cpp" />
-    <ClCompile Include="src\gui\state\field_snapshot_model.cpp" />
-    <ClCompile Include="src\gui\state\field_watch_model.cpp" />
-    <ClCompile Include="src\gui\state\call_log_model.cpp" />
-    <ClCompile Include="src\gui\state\inspector_bookmarks_model.cpp" />
-    <ClCompile Include="src\gui\state\inspector_history_model.cpp" />
-    <ClCompile Include="src\gui\state\inspector_history_restore.cpp" />
-    <ClCompile Include="src\gui\state\inspector_navigation_feedback.cpp" />
-    <ClCompile Include="src\gui\state\image_selection.cpp" />
+    <ClCompile Include="src\dumper\invoke_param_policy.cpp" />
+    <ClCompile Include="src\gui\state\core\image_cache_model.cpp" />
+    <ClCompile Include="src\gui\state\core\class_cache_model.cpp" />
+    <ClCompile Include="src\gui\state\core\inspector_model.cpp" />
+    <ClCompile Include="src\gui\state\runtime\async_loader_set.cpp" />
+    <ClCompile Include="src\gui\state\navigation\walker_controller.cpp" />
+    <ClCompile Include="src\gui\state\runtime\invoke_request_queue.cpp" />
+    <ClCompile Include="src\gui\state\navigation\history_validation.cpp" />
+    <ClCompile Include="src\gui\state\fields\field_path_resolver.cpp" />
+    <ClCompile Include="src\gui\state\fields\field_snapshot_model.cpp" />
+    <ClCompile Include="src\gui\state\fields\field_watch_model.cpp" />
+    <ClCompile Include="src\gui\state\runtime\call_log_model.cpp" />
+    <ClCompile Include="src\gui\state\history\inspector_bookmarks_model.cpp" />
+    <ClCompile Include="src\gui\state\history\inspector_history_model.cpp" />
+    <ClCompile Include="src\gui\state\history\inspector_history_restore.cpp" />
+    <ClCompile Include="src\gui\state\navigation\inspector_navigation_feedback.cpp" />
+    <ClCompile Include="src\gui\state\core\image_selection.cpp" />
     <ClCompile Include="src\pch.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Create</PrecompiledHeader>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">Create</PrecompiledHeader>
@@ -384,11 +409,9 @@
     <ClCompile Include="src\services\main_thread_dispatcher.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <None Include="docs\Feature-Plan-3-Complete.md" />
-    <None Include="docs\Feature-Plan-4.md" />
+    <None Include="docs\Architecture-History.md" />
     <None Include="docs\overview\AI-Agent-Context.md" />
-    <None Include="docs\overview\Architectural-Refactor-Summary.md" />
-    <None Include="docs\overview\Projekt_Onboarding.md" />
+    <None Include="docs\overview\Architecture-Structure.md" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

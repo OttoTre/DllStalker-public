@@ -17,10 +17,11 @@ void ControlPanelSessionState::ClearClassCache() {
 
 void ControlPanelSessionState::ClearInspectorCache() {
     {
-        std::lock_guard<std::mutex> lock(inspectorCacheMutex);
-        inspectorCache = {};
-        selectedInstanceIndex = -1;
-        editBuffers.clear();
+        std::lock_guard<std::mutex> lock(inspector.mutex);
+        inspector.cache = {};
+        inspector.selectedInstanceIndex = -1;
+        editBufferStore.buffers.clear();
+        enumLiteralCache.Clear();
     }
     methodsFilterBuffer[0] = '\0';
     fieldsFilterBuffer[0] = '\0';
@@ -28,7 +29,7 @@ void ControlPanelSessionState::ClearInspectorCache() {
     methodsCachedLowerFilter.clear();
     fieldsCachedOriginalFilter.clear();
     fieldsCachedLowerFilter.clear();
-    // navigationStack is UI-thread-only; reset it whenever the inspector
+    // walker.stack is UI-thread-only; reset it whenever the inspector
     // returns to "no active target" so a future Select / Navigate starts
     // from a clean breadcrumb history.
     ResetNavigationStack();

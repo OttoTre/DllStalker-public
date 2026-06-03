@@ -61,6 +61,20 @@ std::string ObjectIdentity::TryGetClassNameFromInstance(void* instance, void** o
     return name;
 }
 
+bool ObjectIdentity::IsOrInheritsFrom(void* klass, const char* targetName) const {
+    if (!klass || !targetName) return false;
+    const auto& exp = m_resolver.module.exports;
+    if (!exp.fnClassGetName || !exp.fnGetParent) return false;
+    void* cur = klass;
+    int depth = 0;
+    while (cur && depth++ < 12) {
+        const char* name = exp.fnClassGetName(cur);
+        if (name && strcmp(name, targetName) == 0) return true;
+        cur = exp.fnGetParent(cur);
+    }
+    return false;
+}
+
 int ObjectIdentity::GetObjectSize(void* instance) const {
     if (!instance) return 0;
     void* klass = KlassFromInstance(instance);

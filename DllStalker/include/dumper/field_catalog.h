@@ -21,8 +21,8 @@ public:
     std::vector<FieldInfo> GetRawFields(void* klass);
     std::vector<FieldInfo> GetRawFields(void* klass, void* instancePtr);
 
-    // Forwards to Engine::Write::SetFieldValue. Lives here so callers
-    // talk to the dumper layer instead of reaching into types/.
+    std::vector<EnumLiteral> GetEnumLiterals(void* enumKlass);
+
     bool SetFieldValue(const FieldInfo& field, const std::string& newValue, std::string* error = nullptr);
 
 private:

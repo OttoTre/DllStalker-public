@@ -48,6 +48,7 @@ thread_local bool       tl_drainingOnThisThread = false;
 
 std::mutex              g_queueMutex;
 std::deque<Job>         g_queue;
+std::atomic<uint32_t>   g_droppedJobCount{0};
 
 // This wrapper uses SEH to survive access violations from queued jobs.
 // Regular C++ catch blocks do not catch AV under /EHsc.
@@ -92,7 +93,10 @@ void MaybeDrain() {
     // Heuristic: the first non-DllStalker caller of runtime_invoke is the Unity main thread.
     // This is usually true because managed startup runs on the main thread first.
     DWORD expected = 0;
-    g_mainThreadId.compare_exchange_strong(expected, tid);
+    if (g_mainThreadId.compare_exchange_strong(expected, tid) && expected == 0) {
+        printf("[+] MainThreadDispatcher: captured main thread id 0x%lX\n",
+               static_cast<unsigned long>(tid));
+    }
 
     if (g_mainThreadId.load() != tid) return;
 
@@ -150,6 +154,7 @@ bool Enqueue(Job job) {
     if (g_queue.size() >= kMaxQueueDepth) {
         // Drop the oldest to keep the queue bounded; prevents click-spam
         // from forcing unbounded memory growth or starving newer requests.
+        g_droppedJobCount.fetch_add(1, std::memory_order_relaxed);
         printf("[!] MainThreadDispatcher: queue full (%zu); dropping oldest job\n",
                g_queue.size());
         g_queue.pop_front();
@@ -175,6 +180,15 @@ bool IsMainThreadCaptured() {
 
 DWORD GetMainThreadId() {
     return g_mainThreadId.load();
+}
+
+uint32_t GetDroppedJobCount() {
+    return g_droppedJobCount.load(std::memory_order_relaxed);
+}
+
+uint32_t GetQueueDepth() {
+    std::lock_guard<std::mutex> lock(g_queueMutex);
+    return static_cast<uint32_t>(g_queue.size());
 }
 } // namespace Engine::Services::MainThreadDispatcher
 

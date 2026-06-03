@@ -9,20 +9,22 @@
 
 #include "unity_dumper.h"
 
-#include "gui/state/async_loader_set.h"
-#include "gui/state/class_cache_model.h"
-#include "gui/state/edit_buffer_store.h"
-#include "gui/state/image_cache_model.h"
-#include "gui/state/field_snapshot_model.h"
-#include "gui/state/field_watch_model.h"
-#include "gui/state/call_log_model.h"
-#include "gui/state/inspector_bookmarks_model.h"
-#include "gui/state/inspector_history_model.h"
-#include "gui/state/inspector_history_types.h"
-#include "gui/state/inspector_navigation_feedback.h"
-#include "gui/state/inspector_model.h"
-#include "gui/state/invoke_request_queue.h"
-#include "gui/state/walker_controller.h"
+#include "gui/state/runtime/async_loader_set.h"
+#include "gui/state/core/class_cache_model.h"
+#include "gui/state/core/edit_buffer_store.h"
+#include "gui/state/core/enum_literal_cache.h"
+#include "gui/state/core/image_cache_model.h"
+#include "gui/state/fields/field_snapshot_model.h"
+#include "gui/state/fields/field_watch_model.h"
+#include "gui/state/runtime/call_log_model.h"
+#include "gui/state/history/inspector_bookmarks_model.h"
+#include "gui/state/history/inspector_history_model.h"
+#include "gui/state/history/inspector_history_types.h"
+#include "gui/state/navigation/inspector_navigation_feedback.h"
+#include "gui/state/core/inspector_model.h"
+#include "gui/state/runtime/invoke_request_queue.h"
+#include "gui/state/transform/transform_model.h"
+#include "gui/state/navigation/walker_controller.h"
 
 namespace Gui
 {
@@ -31,23 +33,12 @@ namespace Gui
 // facade orchestrates cross-model operations (async loads, navigation,
 // invoke dispatch).
 //
-// Backward-compat: legacy field names are exposed as references to model
-// fields so the GUI views compile untouched in this phase. Phase 6 will
-// split the views and let those names retire.
-//
 // Member-order rules:
-//   * `loaders` (AsyncLoaderSet, contains jthreads) is declared BEFORE all
-//     reference aliases so those NSDMI bindings are well-formed and so
-//     `loaders` is destroyed AFTER... wait, scratch that — destruction is
-//     reverse declaration. We rely on jthread's destructor (request_stop +
-//     join) to cleanly stop workers before the data they captured by
-//     reference goes away. Trick: declare `loaders` AFTER all data (so
-//     jthreads join first), then declare the (trivially destructible)
-//     reference aliases at the very end. References don't really
-//     "destruct" so destruction order is preserved correctly:
-//       1. ref aliases (trivial no-op)
-//       2. loaders (jthreads join here, while mutexes/data are still alive)
-//       3. data members (caches, mutexes, models)
+//   * `loaders` (AsyncLoaderSet, contains jthreads) is declared after all
+//     captured data so worker threads join before caches, mutexes, and models
+//     are destroyed.
+//   * Destruction is reverse declaration order: loaders are destroyed first,
+//     then the data models they captured by reference.
 struct ControlPanelSessionState {
     // ---- Composed data models ---------------------------------------------
     std::shared_ptr<Engine::UnityDumper> dumper = nullptr;
@@ -56,6 +47,7 @@ struct ControlPanelSessionState {
     State::ClassCacheModel     classCache{};
     State::InspectorModel      inspector{};
     State::EditBufferStore     editBufferStore{};
+    State::EnumLiteralCache    enumLiteralCache{};
     State::WalkerController    walker{};
     State::InvokeRequestQueue  invokeQueue{};
     State::InspectorHistoryModel         history{};
@@ -64,6 +56,7 @@ struct ControlPanelSessionState {
     State::FieldWatchModel               fieldWatch{};
     State::CallLogModel                  callLog{};
     State::InspectorNavigationFeedback   navigationFeedback{};
+    State::TransformModel                transformModel{};
 
     // ---- Plain UI state ----------------------------------------------------
     void* selectedImage = nullptr;
@@ -74,17 +67,12 @@ struct ControlPanelSessionState {
     char classFilterBuffer[128]  = "";
     char methodsFilterBuffer[128] = "";
     char fieldsFilterBuffer[128]  = "";
-    int  selectedDumpMode        = 0;
-
     bool   fieldsAutoRefresh         = false;
     int    fieldsRefreshIntervalIndex = 1;
     double fieldsLastRefreshAt        = 0.0;
 
-    // First-load reconciler: when true, the app shell tries to resolve
-    // `imgSearchBuffer` against the loaded image cache once it arrives and
-    // applies it via SelectImage(). Cleared after the first attempt (match
-    // or miss) so a typo doesn't scan every frame. Re-armed by the Refresh
-    // Images button when no image is currently selected.
+    // App shell auto-selects imgSearchBuffer once after the image cache loads.
+    // Cleared after one attempt; Refresh Images re-arms when nothing is selected.
     bool pendingDefaultImageSelection = true;
 
     std::string cachedLowerFilter{};
@@ -96,48 +84,6 @@ struct ControlPanelSessionState {
 
     // ---- Worker bundle (declared after data so jthreads join cleanly) -----
     State::AsyncLoaderSet loaders{};
-
-    // ---- Backward-compat reference aliases --------------------------------
-    // Declared AFTER all real members so every reference NSDMI binds to an
-    // already-constructed target. References themselves have trivial
-    // destruction so they don't disturb the worker-join ordering above.
-    std::vector<Engine::ImageInfo>& uiImageCache       = imageCache.data;
-    std::mutex&                     imageCacheMutex    = imageCache.mutex;
-
-    std::vector<Engine::ClassInfo>& uiClassCache       = classCache.data;
-    std::mutex&                     classCacheMutex    = classCache.mutex;
-
-    InspectorCache& inspectorCache              = inspector.cache;
-    std::mutex&     inspectorCacheMutex         = inspector.mutex;
-    int&            selectedInstanceIndex       = inspector.selectedInstanceIndex;
-    int&            instanceSearchMode          = inspector.instanceSearchMode;
-    std::vector<void*>& rootInstanceCandidates  = inspector.rootInstanceCandidates;
-
-    std::unordered_map<uintptr_t, std::array<char, 64>>& editBuffers = editBufferStore.buffers;
-
-    std::vector<InspectorBreadcrumb>& navigationStack = walker.stack;
-
-    int&                                 pendingInvokeMethodIndex     = invokeQueue.pendingInvokeMethodIndex;
-    std::vector<std::array<char, 64>>&   invokeArgBuffers             = invokeQueue.argBuffers;
-    std::mutex&                          invokeResultMutex            = invokeQueue.mutex;
-    Engine::InvokeResult&                latestInvokeResult           = invokeQueue.latestResult;
-    std::string&                         latestInvokeMethodName       = invokeQueue.latestMethodName;
-    std::string&                         latestInvokeMethodParameters = invokeQueue.latestMethodParameters;
-    std::string&                         latestInvokeArgsDisplay      = invokeQueue.latestArgsDisplay;
-    std::atomic<int>&                    latestInvokeResultVersion    = invokeQueue.latestVersion;
-    float&                               latestInvokeResultAtSeconds  = invokeQueue.latestAtSeconds;
-
-    std::atomic<bool>& imageLoadInProgress      = loaders.imageLoadInProgress;
-    std::atomic<bool>& classLoadInProgress      = loaders.classLoadInProgress;
-    std::atomic<bool>& inspectorLoadInProgress  = loaders.inspectorLoadInProgress;
-    std::atomic<bool>& fieldsLoadInProgress     = loaders.fieldsLoadInProgress;
-    std::atomic<bool>& instanceSearchInProgress = loaders.instanceSearchInProgress;
-
-    std::jthread& imageLoadThread       = loaders.imageLoadThread;
-    std::jthread& classLoadThread       = loaders.classLoadThread;
-    std::jthread& inspectorLoadThread   = loaders.inspectorLoadThread;
-    std::jthread& fieldsLoadThread      = loaders.fieldsLoadThread;
-    std::jthread& instanceSearchThread  = loaders.instanceSearchThread;
 
     // ---- Cache reset helpers -----------------------------------------------
     void ClearImageCache();
@@ -153,7 +99,9 @@ struct ControlPanelSessionState {
     void StartLiveInstanceSearch(const std::shared_ptr<Engine::UnityDumper>& dumperRef, void* selectedClassSnapshot);
     void StartInspectorLoadAtInstance(const std::shared_ptr<Engine::UnityDumper>& dumperRef, void* klass, void* instance);
     void StartCollectionLoad(const std::shared_ptr<Engine::UnityDumper>& dumperRef,
-                             const Engine::FieldInfo& sourceField);
+                             const Engine::FieldInfo& sourceField,
+                             void* ownerKlass,
+                             void* ownerInstance);
 
     // ---- Recursive Memory Walker -------------------------------------------
     bool NavigateIntoPointer(uintptr_t fieldValueAddress, std::string fieldLabel);

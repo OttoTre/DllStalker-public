@@ -63,6 +63,12 @@ bool IsMainThreadCaptured();
 
 // 0 until latched; otherwise the captured thread id.
 DWORD GetMainThreadId();
+
+// Monotonic count of jobs dropped because the queue hit kMaxQueueDepth.
+uint32_t GetDroppedJobCount();
+
+// Snapshot of pending jobs (under internal mutex).
+uint32_t GetQueueDepth();
 } // namespace MainThreadDispatcher
 } // namespace Engine::Services
 

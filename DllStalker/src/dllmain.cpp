@@ -30,10 +30,7 @@
 // Post-DllMain bootstrap worker (NOT the process or Unity main thread).
 static DWORD WINAPI DllStalkerBootstrap(LPVOID) {
 #ifdef ENABLE_DUMPER
-    // Tag this thread up front so the dispatcher's runtime_invoke detour
-    // doesn't mis-latch us as the engine main thread. Init() itself does
-    // not call into runtime_invoke, but defensive ordering: we want the
-    // tag set before any code path that could.
+    // Tag before any runtime_invoke call so this thread is not latched as main.
     Engine::Services::MainThreadDispatcher::TagCurrentThreadAsOurs();
 #endif
 

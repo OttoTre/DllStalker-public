@@ -4,6 +4,7 @@
 
 #include <cstdint>
 #include <string>
+#include <string_view>
 
 // GUI-friendly display formatting for managed field values. Hands off to
 // type_classifier for the category branch, then runs a memory-safe decode
@@ -29,6 +30,12 @@ std::string DecodeRegisterArgument(const std::string& typeName, uintptr_t regist
 // or the address is null; "??" when the read itself fails. Callers (GUI,
 // console dumper) treat these sentinels as non-clickable.
 std::string DecodeFieldValue(const std::string& fieldType, uintptr_t valueAddress, bool hasValue);
+
+// Fields-tab edit helpers. StripQuotes removes the outer pair from decoded
+// display ("hello" -> hello). NormalizeStringFieldInput trims, treats
+// null/empty as assign-null, and applies StripQuotes on the payload.
+std::string StripQuotesForFieldEdit(std::string_view display);
+std::string NormalizeStringFieldInput(std::string_view raw);
 } // namespace Engine::Decode
 
 #endif // ENABLE_DUMPER

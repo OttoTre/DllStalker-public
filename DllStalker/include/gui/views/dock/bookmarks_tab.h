@@ -2,7 +2,10 @@
 
 #include "pch.h"
 
-#include "gui/session_state.h"
+namespace Gui
+{
+struct ControlPanelSessionState;
+}
 
 namespace Gui::Views
 {

@@ -27,6 +27,10 @@ public:
     // export isn't resolved.
     int GetObjectSize(void* instance) const; // Used in diagnostics for hex dumps and static field scans.
 
+    // Returns true when `klass` is `targetName` or any class in its
+    // inheritance chain has that name. Walks at most 12 levels.
+    bool IsOrInheritsFrom(void* klass, const char* targetName) const;
+
 private:
     const UnityResolver& m_resolver;
 };

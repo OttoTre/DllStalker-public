@@ -21,9 +21,9 @@ enum class InstallResult {
     MinHookFailed,
 };
 
-using LineCallback = void (*)(void* userData, const char* line);
+using EventCallback = void (*)(void* userData, const Engine::Services::CallLogEvent& event);
 
-void SetLineCallback(LineCallback callback, void* userData);
+void SetEventCallback(EventCallback callback, void* userData);
 
 bool IsTargetHooked(uintptr_t target);
 

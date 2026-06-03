@@ -4,10 +4,11 @@
 
 #include "gui/views/dock/bookmarks_tab.h"
 
+#include "gui/session_state.h"
 #include "gui/views/dock/navigation_status_banner.h"
 
-#include "gui/state/history_steady_time.h"
-#include "gui/state/inspector_navigation_snapshot.h"
+#include "gui/state/navigation/history_steady_time.h"
+#include "gui/state/navigation/inspector_navigation_snapshot.h"
 
 #include "imgui.h"
 

@@ -32,6 +32,9 @@ struct UnityExports
     typedef const char*  (__cdecl* t_ClassGetName)(void* klass);
     typedef const char*  (__cdecl* t_ClassGetNamespace)(void* klass);
     typedef void*        (__cdecl* t_ClassGetType)(void* klass);
+    typedef int32_t      (__cdecl* t_ClassIsEnum)(void* klass);
+    typedef void*        (__cdecl* t_ClassEnumBasetype)(void* klass);
+    typedef void*        (__cdecl* t_ClassFromType)(void* type);
     // Method
     typedef void*    (__cdecl* t_GetMethod)(void* klass, const char* name, int args);
     typedef void*    (__cdecl* t_CompileMethod)(void* method);
@@ -92,6 +95,9 @@ struct UnityExports
     t_ClassFromIndex    fnClassFromIndex    = nullptr;
     t_ClassGetName      fnClassGetName      = nullptr;
     t_ClassGetNamespace fnClassGetNamespace = nullptr;
+    t_ClassIsEnum       fnClassIsEnum       = nullptr;
+    t_ClassEnumBasetype fnClassEnumBasetype = nullptr;
+    t_ClassFromType     fnClassFromType     = nullptr;
     // Object: cross-engine "instance -> class". On IL2CPP this returns the
     // Il2CppClass directly; on Mono it dereferences the MonoVTable header
     // internally and returns the MonoClass. Routing through this single

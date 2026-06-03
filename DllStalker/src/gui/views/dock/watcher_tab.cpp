@@ -4,10 +4,11 @@
 
 #include "gui/views/dock/watcher_tab.h"
 
+#include "gui/session_state.h"
 #include "gui/config.h"
 #include "gui/views/dock/navigation_status_banner.h"
 
-#include "gui/state/history_steady_time.h"
+#include "gui/state/navigation/history_steady_time.h"
 
 #include "imgui.h"
 
@@ -27,17 +28,28 @@ std::string WatchEntryLabel(const Gui::State::WatchedField& entry) {
     return entry.fieldName;
 }
 
-void CollectPlottableIds(const ControlPanelSessionState& state, std::vector<uint32_t>& outIds) {
+void CollectPlottableIds(const std::vector<Gui::State::WatchedField>& entries,
+                         std::vector<uint32_t>& outIds) {
     outIds.clear();
-    outIds.reserve(state.fieldWatch.entries.size());
-    for (const auto& entry : state.fieldWatch.entries) {
+    outIds.reserve(entries.size());
+    for (const auto& entry : entries) {
         if (entry.plotEnabled) {
             outIds.push_back(entry.id);
         }
     }
 }
 
-void RenderSelectedPlot(ControlPanelSessionState& state, const Gui::State::WatchedField& entry) {
+const Gui::State::WatchedField* FindSnapshotEntry(const std::vector<Gui::State::WatchedField>& entries,
+                                                  uint32_t id) {
+    for (const auto& entry : entries) {
+        if (entry.id == id) {
+            return &entry;
+        }
+    }
+    return nullptr;
+}
+
+void RenderSelectedPlot(const Gui::State::WatchedField& entry) {
     if (entry.stale) {
         ImGui::TextDisabled("Address stale — Jump to restore context.");
         ImGui::TextDisabled("Last: %s", entry.lastDisplay.c_str());
@@ -70,7 +82,8 @@ void RenderSelectedPlot(ControlPanelSessionState& state, const Gui::State::Watch
                      ImVec2(-1.0f, plotH));
 }
 
-void RenderWatcherWatchlist(ControlPanelSessionState& state) {
+void RenderWatcherWatchlist(ControlPanelSessionState& state,
+                            const std::vector<Gui::State::WatchedField>& entries) {
     if (!ImGui::BeginChild("WatcherWatchlist", ImVec2(0, 0), false)) {
         return;
     }
@@ -85,37 +98,27 @@ void RenderWatcherWatchlist(ControlPanelSessionState& state) {
         ImGui::TableSetupColumn("Actions", ImGuiTableColumnFlags_WidthFixed, 168.0f);
         ImGui::TableHeadersRow();
 
-        std::vector<uint32_t> ids;
-        ids.reserve(state.fieldWatch.entries.size());
-        for (const auto& entry : state.fieldWatch.entries) {
-            ids.push_back(entry.id);
-        }
-
-        for (uint32_t id : ids) {
-            const Gui::State::WatchedField* entry = state.fieldWatch.Find(id);
-            if (!entry) {
-                continue;
-            }
-
+        for (const auto& entry : entries) {
+            const uint32_t id = entry.id;
             ImGui::TableNextRow();
             ImGui::PushID(static_cast<int>(id));
 
             ImGui::TableSetColumnIndex(0);
-            ImGui::TextUnformatted(WatchEntryLabel(*entry).c_str());
+            ImGui::TextUnformatted(WatchEntryLabel(entry).c_str());
 
             ImGui::TableSetColumnIndex(1);
-            ImGui::TextUnformatted(entry->typeName.c_str());
+            ImGui::TextUnformatted(entry.typeName.c_str());
 
             ImGui::TableSetColumnIndex(2);
-            if (entry->stale) {
-                ImGui::TextDisabled("%s", entry->lastDisplay.c_str());
+            if (entry.stale) {
+                ImGui::TextDisabled("%s", entry.lastDisplay.c_str());
             }
             else {
-                ImGui::TextUnformatted(entry->lastDisplay.c_str());
+                ImGui::TextUnformatted(entry.lastDisplay.c_str());
             }
 
             ImGui::TableSetColumnIndex(3);
-            if (entry->plotEnabled) {
+            if (entry.plotEnabled) {
                 if (ImGui::SmallButton("Plot")) {
                     state.fieldWatch.SetSelectedPlotWatchId(id);
                     state.fieldWatch.focusChartsTab = true;
@@ -123,10 +126,10 @@ void RenderWatcherWatchlist(ControlPanelSessionState& state) {
                 ImGui::SameLine();
             }
             if (ImGui::SmallButton("Jump")) {
-                const auto result = state.TryApplyNavigationSnapshot(entry->restoreSnapshot);
+                const auto result = state.TryApplyNavigationSnapshot(entry.restoreSnapshot);
                 if (result == Gui::State::HistoryRestoreResult::Applied) {
                     std::string banner = "Restored watch: ";
-                    banner += WatchEntryLabel(*entry);
+                    banner += WatchEntryLabel(entry);
                     state.navigationFeedback.MarkStatus(banner.c_str(),
                                                         Gui::State::HistorySteadyNowSeconds());
                 }
@@ -145,9 +148,10 @@ void RenderWatcherWatchlist(ControlPanelSessionState& state) {
     ImGui::EndChild();
 }
 
-void RenderWatcherCharts(ControlPanelSessionState& state) {
+void RenderWatcherCharts(ControlPanelSessionState& state,
+                         const std::vector<Gui::State::WatchedField>& entries) {
     std::vector<uint32_t> plottableIds;
-    CollectPlottableIds(state, plottableIds);
+    CollectPlottableIds(entries, plottableIds);
 
     if (plottableIds.empty()) {
         ImGui::TextUnformatted(
@@ -166,13 +170,13 @@ void RenderWatcherCharts(ControlPanelSessionState& state) {
     }
 
     const Gui::State::WatchedField* selectedEntry =
-        state.fieldWatch.Find(state.fieldWatch.selectedPlotWatchId);
-    const char* comboPreview =
-        (selectedEntry != nullptr) ? WatchEntryLabel(*selectedEntry).c_str() : "";
+        FindSnapshotEntry(entries, state.fieldWatch.selectedPlotWatchId);
+    const std::string comboPreview =
+        (selectedEntry != nullptr) ? WatchEntryLabel(*selectedEntry) : "";
 
-    if (ImGui::BeginCombo("Series", comboPreview)) {
+    if (ImGui::BeginCombo("Series", comboPreview.c_str())) {
         for (size_t i = 0; i < plottableIds.size(); ++i) {
-            const Gui::State::WatchedField* entry = state.fieldWatch.Find(plottableIds[i]);
+            const Gui::State::WatchedField* entry = FindSnapshotEntry(entries, plottableIds[i]);
             if (!entry) {
                 continue;
             }
@@ -184,7 +188,7 @@ void RenderWatcherCharts(ControlPanelSessionState& state) {
         ImGui::EndCombo();
     }
 
-    const Gui::State::WatchedField* entry = state.fieldWatch.Find(state.fieldWatch.selectedPlotWatchId);
+    const Gui::State::WatchedField* entry = FindSnapshotEntry(entries, state.fieldWatch.selectedPlotWatchId);
     if (!entry || !entry->plotEnabled) {
         ImGui::TextDisabled("Select a series to plot.");
         return;
@@ -193,32 +197,35 @@ void RenderWatcherCharts(ControlPanelSessionState& state) {
     if (!ImGui::BeginChild("WatcherChartPlot", ImVec2(0, 0), false)) {
         return;
     }
-    RenderSelectedPlot(state, *entry);
+    RenderSelectedPlot(*entry);
     ImGui::EndChild();
 }
 } // namespace
 
 void RenderWatcherTab(ControlPanelSessionState& state) {
-    state.fieldWatch.UpdateLiveValues();
-
     if (ImGui::Button("Clear all##watcher")) {
         state.fieldWatch.Clear();
     }
+
+    const std::vector<Gui::State::WatchedField> entries = state.fieldWatch.SnapshotEntries();
+
     ImGui::SameLine();
     ImGui::TextDisabled("%zu / %zu watched",
-                        state.fieldWatch.entries.size(),
+                        entries.size(),
                         Gui::State::FieldWatchModel::kMaxEntries);
 
     RenderNavigationStatusBanner(state);
 
-    if (state.fieldWatch.entries.empty()) {
+    if (entries.empty()) {
         ImGui::TextUnformatted(
             "No watched fields. Toggle [W] on a field row in the Fields tab.");
         return;
     }
 
     const bool focusCharts = state.fieldWatch.ConsumeFocusChartsTab();
-    const size_t plottableCount = state.fieldWatch.CountPlottable();
+    std::vector<uint32_t> plottableIds;
+    CollectPlottableIds(entries, plottableIds);
+    const size_t plottableCount = plottableIds.size();
 
     char chartsTabLabel[32] = "Charts";
     if (plottableCount > 0) {
@@ -230,12 +237,12 @@ void RenderWatcherTab(ControlPanelSessionState& state) {
     }
 
     if (ImGui::BeginTabItem("Watchlist")) {
-        RenderWatcherWatchlist(state);
+        RenderWatcherWatchlist(state, entries);
         ImGui::EndTabItem();
     }
 
     if (ImGui::BeginTabItem(chartsTabLabel, nullptr, focusCharts ? ImGuiTabItemFlags_SetSelected : 0)) {
-        RenderWatcherCharts(state);
+        RenderWatcherCharts(state, entries);
         ImGui::EndTabItem();
     }
 

@@ -9,9 +9,6 @@
 
 #include "MinHook.h"
 
-#include "types/type_classifier.h"
-#include "types/value_decoder.h"
-
 #include <algorithm>
 #include <atomic>
 #include <cstdio>
@@ -26,27 +23,22 @@ namespace
 {
 using FastCall4 = void* (__fastcall*)(void*, void*, void*, void*);
 
-constexpr size_t kMaxParamTypes = 4;
-constexpr size_t kTypeNameBytes = 96;
-constexpr size_t kLabelBytes    = 128;
-constexpr size_t kLineBytes     = 1024;
-
 struct SlotState {
     std::atomic<bool> active{false};
     uint32_t          hookId   = 0;
     uintptr_t         target   = 0;
     bool              isStatic = false;
     uint8_t           paramCount = 0;
-    char              displayLabel[kLabelBytes]{};
-    char              paramTypeNames[kMaxParamTypes][kTypeNameBytes]{};
+    char              displayLabel[kCallLogLabelBytes]{};
+    char              paramTypeNames[kCallLogMaxParamTypes][kCallLogTypeNameBytes]{};
     FastCall4         original = nullptr;
 };
 
 SlotState g_slots[kMaxSlots]{};
 
 std::mutex    g_installMutex;
-LineCallback  g_lineCallback = nullptr;
-void*         g_lineUserData   = nullptr;
+EventCallback g_eventCallback = nullptr;
+void*         g_eventUserData  = nullptr;
 
 void WriteLocalTimeLabel(char* buf, size_t bufSize) {
     if (!buf || bufSize == 0) {
@@ -59,67 +51,30 @@ void WriteLocalTimeLabel(char* buf, size_t bufSize) {
     strftime(buf, bufSize, "%H:%M:%S", &localTime);
 }
 
-void AppendArg(char* dest,
-               size_t destSize,
-               size_t& linePos,
-               size_t& argsWritten,
-               const char* name,
-               const char* value) {
-    if (!dest || destSize == 0 || linePos >= destSize) {
-        return;
-    }
-    const int added = snprintf(dest + linePos,
-                               destSize - linePos,
-                               argsWritten == 0 ? "%s: %s" : ", %s: %s",
-                               name,
-                               value ? value : "<?>");
-    if (added > 0) {
-        linePos += static_cast<size_t>(added);
-        ++argsWritten;
-    }
-}
-
-__declspec(noinline) void FormatAndPushLine(int slotIndex, void* rcx, void* rdx, void* r8, void* r9) {
+__declspec(noinline) void CaptureAndPushEvent(int slotIndex, void* rcx, void* rdx, void* r8, void* r9) {
     const SlotState& slot = g_slots[slotIndex];
     if (!slot.active.load(std::memory_order_acquire)) {
         return;
     }
 
-    void* argRegs[4] = {rcx, rdx, r8, r9};
-    const uint8_t maxArgs = slot.isStatic ? 4 : 3;
+    CallLogEvent event{};
+    event.hookId = slot.hookId;
+    event.isStatic = slot.isStatic;
+    event.paramCount = slot.paramCount;
+    WriteLocalTimeLabel(event.timeLabel, sizeof(event.timeLabel));
+    strncpy_s(event.displayLabel, slot.displayLabel, _TRUNCATE);
 
-    char timeBuf[32] = {};
-    WriteLocalTimeLabel(timeBuf, sizeof(timeBuf));
-
-    char line[kLineBytes] = {};
-    size_t linePos = snprintf(line,
-                              sizeof(line),
-                              "[%s] %s(",
-                              timeBuf,
-                              slot.displayLabel[0] != '\0' ? slot.displayLabel : "?");
-
-    char argName[16] = {};
-    size_t argsWritten = 0;
-    const uint8_t argCount = static_cast<uint8_t>((std::min)(static_cast<size_t>(slot.paramCount),
-                                                          static_cast<size_t>(maxArgs)));
-    for (uint8_t i = 0; i < argCount && i < kMaxParamTypes; ++i) {
-        snprintf(argName, sizeof(argName), "arg%u", i);
-        const int regIndex = slot.isStatic ? static_cast<int>(i) : static_cast<int>(i) + 1;
-        if (regIndex < 0 || regIndex > 3) {
-            continue;
-        }
-        const uintptr_t regVal = reinterpret_cast<uintptr_t>(argRegs[regIndex]);
-        const std::string typeName = slot.paramTypeNames[i];
-        const std::string decoded  = Engine::Decode::DecodeRegisterArgument(typeName, regVal);
-        AppendArg(line, sizeof(line), linePos, argsWritten, argName, decoded.c_str());
+    for (uint8_t i = 0; i < slot.paramCount && i < kCallLogMaxParamTypes; ++i) {
+        strncpy_s(event.paramTypeNames[i], slot.paramTypeNames[i], _TRUNCATE);
     }
 
-    if (linePos < sizeof(line) - 2) {
-        strncat_s(line, sizeof(line), ")", _TRUNCATE);
-    }
+    event.argRegisters[0] = reinterpret_cast<uintptr_t>(rcx);
+    event.argRegisters[1] = reinterpret_cast<uintptr_t>(rdx);
+    event.argRegisters[2] = reinterpret_cast<uintptr_t>(r8);
+    event.argRegisters[3] = reinterpret_cast<uintptr_t>(r9);
 
-    if (g_lineCallback) {
-        g_lineCallback(g_lineUserData, line);
+    if (g_eventCallback) {
+        g_eventCallback(g_eventUserData, event);
     }
 }
 
@@ -131,7 +86,7 @@ __declspec(noinline) void* OnHit(int slotIndex, void* rcx, void* rdx, void* r8, 
     }
 
     if (slot.active.load(std::memory_order_acquire)) {
-        FormatAndPushLine(slotIndex, rcx, rdx, r8, r9);
+        CaptureAndPushEvent(slotIndex, rcx, rdx, r8, r9);
     }
 
     __try {
@@ -187,7 +142,7 @@ void CopySpecToSlot(SlotState& slot, const CallLogHookSpec& spec) {
     slot.isStatic    = spec.isStatic;
     slot.hookId      = spec.hookId;
     slot.target      = spec.target;
-    slot.paramCount  = static_cast<uint8_t>((std::min)(spec.paramTypes.size(), kMaxParamTypes));
+    slot.paramCount  = static_cast<uint8_t>((std::min)(spec.paramTypes.size(), kCallLogMaxParamTypes));
     for (uint8_t i = 0; i < slot.paramCount; ++i) {
         strncpy_s(slot.paramTypeNames[i], spec.paramTypes[i].typeName.c_str(), _TRUNCATE);
     }
@@ -238,10 +193,10 @@ bool UninstallSlotLocked(int slotIndex) {
 }
 } // namespace
 
-void SetLineCallback(LineCallback callback, void* userData) {
+void SetEventCallback(EventCallback callback, void* userData) {
     std::lock_guard<std::mutex> lock(g_installMutex);
-    g_lineCallback = callback;
-    g_lineUserData = userData;
+    g_eventCallback = callback;
+    g_eventUserData = userData;
 }
 
 bool IsTargetHooked(uintptr_t target) {
