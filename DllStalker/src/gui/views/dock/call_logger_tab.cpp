@@ -31,6 +31,7 @@ void RenderActiveHooksTable(ControlPanelSessionState& state) {
 
     const float tableHeight = ImGui::GetContentRegionAvail().y;
     if (!ImGui::BeginChild("CallLogHooksScroll", ImVec2(0, tableHeight), false)) {
+        ImGui::EndChild();
         return;
     }
 
@@ -68,6 +69,7 @@ void RenderCallLogLines(ControlPanelSessionState& state) {
 
     const float logHeight = ImGui::GetContentRegionAvail().y;
     if (!ImGui::BeginChild("CallLogScroll", ImVec2(0, logHeight), true, ImGuiWindowFlags_HorizontalScrollbar)) {
+        ImGui::EndChild();
         return;
     }
 

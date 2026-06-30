@@ -10,6 +10,7 @@
 #include "gui/views/dock/watcher_tab.h"
 #include "gui/views/dock/call_logger_tab.h"
 #include "gui/views/dock/exporter_tab.h"
+#include "gui/views/dock/scripting_tab.h"
 
 #include "imgui.h"
 
@@ -42,6 +43,11 @@ void RenderUtilitiesDock(ControlPanelSessionState& state) {
 
     if (ImGui::BeginTabItem("Exporter")) {
         RenderExporterTab(state);
+        ImGui::EndTabItem();
+    }
+
+    if (ImGui::BeginTabItem("Scripting")) {
+        RenderScriptingTab(state);
         ImGui::EndTabItem();
     }
 

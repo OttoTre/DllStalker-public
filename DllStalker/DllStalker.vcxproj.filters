@@ -33,6 +33,42 @@
     <Filter Include="Pliki źródłowe\services">
       <UniqueIdentifier>{6A7B8C9D-1E2F-3A4B-5C6D-7E8F9A0B1C2D}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Pliki nagłówkowe\scripting">
+      <UniqueIdentifier>{A1B2C3D4-E5F6-7890-ABCD-EF1234567890}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Pliki nagłówkowe\scripting\core">
+      <UniqueIdentifier>{C1D2E3F4-A5B6-7890-CDEF-1234567890AB}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Pliki nagłówkowe\scripting\runtime">
+      <UniqueIdentifier>{D2E3F4A5-B6C7-8901-DEF0-234567890ABC}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Pliki nagłówkowe\scripting\bridge">
+      <UniqueIdentifier>{E3F4A5B6-C7D8-9012-EF01-34567890ABCD}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Pliki nagłówkowe\scripting\handles">
+      <UniqueIdentifier>{F4A5B6C7-D8E9-0123-F012-4567890ABCDE}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Pliki nagłówkowe\scripting\abi">
+      <UniqueIdentifier>{A5B6C7D8-E9F0-1234-0123-567890ABCDEF}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Pliki źródłowe\scripting">
+      <UniqueIdentifier>{B2C3D4E5-F6A7-8901-BCDE-F12345678901}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Pliki źródłowe\scripting\core">
+      <UniqueIdentifier>{B6C7D8E9-F0A1-2345-1234-67890ABCDEF0}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Pliki źródłowe\scripting\runtime">
+      <UniqueIdentifier>{C7D8E9F0-A1B2-3456-2345-7890ABCDEF01}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Pliki źródłowe\scripting\bridge">
+      <UniqueIdentifier>{D8E9F0A1-B2C3-4567-3456-890ABCDEF012}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Pliki źródłowe\scripting\handles">
+      <UniqueIdentifier>{E9F0A1B2-C3D4-5678-4567-90ABCDEF0123}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Pliki źródłowe\scripting\abi">
+      <UniqueIdentifier>{F0A1B2C3-D4E5-6789-5678-0ABCDEF01234}</UniqueIdentifier>
+    </Filter>
     <Filter Include="Pliki nagłówkowe\dumper">
       <UniqueIdentifier>{B5E91D02-4A7C-4D9E-9C3F-3A8B5E7C9D02}</UniqueIdentifier>
     </Filter>
@@ -127,6 +163,39 @@
       <UniqueIdentifier>{67DA6AB6-F800-4c08-8B7A-83BB121AAD01}</UniqueIdentifier>
       <Extensions>rc;ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe;resx;tiff;tif;png;wav;mfcribbon-ms</Extensions>
     </Filter>
+    <Filter Include="Pliki dokumentów\docs">
+      <UniqueIdentifier>{B7C8D9E0-F1A2-4356-8790-ABCDEF012345}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Pliki dokumentów\docs\overview">
+      <UniqueIdentifier>{052fcaf3-2f2a-44de-892a-7a5485375ca7}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Pliki dokumentów\docs\examples">
+      <UniqueIdentifier>{C8D9E0F1-A2B3-4567-8901-234567890ABC}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Pliki dokumentów\docs\examples\packages">
+      <UniqueIdentifier>{B8C9D0E1-F2A3-4567-8901-234567890DEF}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Pliki dokumentów\docs\examples\packages\metadata-lookup">
+      <UniqueIdentifier>{D9E0F1A2-B3C4-5678-9012-34567890ABCD}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Pliki dokumentów\docs\examples\packages\heal-below-threshold">
+      <UniqueIdentifier>{E0F1A2B3-C4D5-6789-0123-4567890ABCDE}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Pliki dokumentów\docs\examples\packages\list-instances">
+      <UniqueIdentifier>{F1A2B3C4-D5E6-7890-1234-567890ABCDEF}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Pliki dokumentów\docs\examples\packages\invoke-method">
+      <UniqueIdentifier>{A2B3C4D5-E6F7-8901-2345-67890ABCDEF0}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Pliki dokumentów\docs\examples\packages\field-watcher">
+      <UniqueIdentifier>{B3C4D5E6-F7A8-9012-3456-7890ABCDEF01}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Pliki dokumentów\docs\examples\packages\curated-offset-read">
+      <UniqueIdentifier>{C4D5E6F7-A8B9-0123-4567-890ABCDEF012}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Pliki dokumentów\docs\scripting">
+      <UniqueIdentifier>{D5E6F7A8-B9C0-1234-5678-90ABCDEF0123}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="include\framework.h">
@@ -143,6 +212,57 @@
     </ClInclude>
     <ClInclude Include="include\pch.h">
       <Filter>Pliki nagłówkowe</Filter>
+    </ClInclude>
+    <ClInclude Include="include\scripting\script_engine.h">
+      <Filter>Pliki nagłówkowe\scripting</Filter>
+    </ClInclude>
+    <ClInclude Include="include\scripting\core\script_result.h">
+      <Filter>Pliki nagłówkowe\scripting\core</Filter>
+    </ClInclude>
+    <ClInclude Include="include\scripting\core\script_context.h">
+      <Filter>Pliki nagłówkowe\scripting\core</Filter>
+    </ClInclude>
+    <ClInclude Include="include\scripting\core\script_sandbox.h">
+      <Filter>Pliki nagłówkowe\scripting\core</Filter>
+    </ClInclude>
+    <ClInclude Include="include\scripting\core\script_audit.h">
+      <Filter>Pliki nagłówkowe\scripting\core</Filter>
+    </ClInclude>
+    <ClInclude Include="include\scripting\core\script_error_boundary.h">
+      <Filter>Pliki nagłówkowe\scripting\core</Filter>
+    </ClInclude>
+    <ClInclude Include="include\scripting\runtime\script_runtime.h">
+      <Filter>Pliki nagłówkowe\scripting\runtime</Filter>
+    </ClInclude>
+    <ClInclude Include="include\scripting\runtime\luajit_runtime_internal.h">
+      <Filter>Pliki nagłówkowe\scripting\runtime</Filter>
+    </ClInclude>
+    <ClInclude Include="include\scripting\bridge\script_value.h">
+      <Filter>Pliki nagłówkowe\scripting\bridge</Filter>
+    </ClInclude>
+    <ClInclude Include="include\scripting\bridge\lua_host_context.h">
+      <Filter>Pliki nagłówkowe\scripting\bridge</Filter>
+    </ClInclude>
+    <ClInclude Include="include\scripting\bridge\lua_proxy.h">
+      <Filter>Pliki nagłówkowe\scripting\bridge</Filter>
+    </ClInclude>
+    <ClInclude Include="include\scripting\bridge\script_command.h">
+      <Filter>Pliki nagłówkowe\scripting\bridge</Filter>
+    </ClInclude>
+    <ClInclude Include="include\scripting\bridge\script_bridge.h">
+      <Filter>Pliki nagłówkowe\scripting\bridge</Filter>
+    </ClInclude>
+    <ClInclude Include="include\scripting\bridge\script_reflection_api.h">
+      <Filter>Pliki nagłówkowe\scripting\bridge</Filter>
+    </ClInclude>
+    <ClInclude Include="include\scripting\handles\script_handles.h">
+      <Filter>Pliki nagłówkowe\scripting\handles</Filter>
+    </ClInclude>
+    <ClInclude Include="include\scripting\handles\script_handle_registry.h">
+      <Filter>Pliki nagłówkowe\scripting\handles</Filter>
+    </ClInclude>
+    <ClInclude Include="include\scripting\abi\script_abi.h">
+      <Filter>Pliki nagłówkowe\scripting\abi</Filter>
     </ClInclude>
     <ClInclude Include="include\presets\hook_preset.h">
       <Filter>Pliki nagłówkowe\presets</Filter>
@@ -333,6 +453,9 @@
     <ClInclude Include="include\gui\views\dock\utilities_dock.h">
       <Filter>Pliki nagłówkowe\gui\views\dock</Filter>
     </ClInclude>
+    <ClInclude Include="include\gui\views\dock\scripting_tab.h">
+      <Filter>Pliki nagłówkowe\gui\views\dock</Filter>
+    </ClInclude>
     <ClInclude Include="include\gui\state\navigation\history_steady_time.h">
       <Filter>Pliki nagłówkowe\gui\state\navigation</Filter>
     </ClInclude>
@@ -349,6 +472,9 @@
       <Filter>Pliki nagłówkowe\gui\state\fields</Filter>
     </ClInclude>
     <ClInclude Include="include\gui\state\runtime\call_log_model.h">
+      <Filter>Pliki nagłówkowe\gui\state\runtime</Filter>
+    </ClInclude>
+    <ClInclude Include="include\gui\state\runtime\script_model.h">
       <Filter>Pliki nagłówkowe\gui\state\runtime</Filter>
     </ClInclude>
     <ClInclude Include="include\gui\state\transform\transform_internal.h">
@@ -391,6 +517,63 @@
     </ClCompile>
     <ClCompile Include="src\services\call_log_hooks.cpp">
       <Filter>Pliki źródłowe\services</Filter>
+    </ClCompile>
+    <ClCompile Include="src\scripting\script_engine.cpp">
+      <Filter>Pliki źródłowe\scripting</Filter>
+    </ClCompile>
+    <ClCompile Include="src\scripting\core\script_result.cpp">
+      <Filter>Pliki źródłowe\scripting\core</Filter>
+    </ClCompile>
+    <ClCompile Include="src\scripting\core\script_sandbox.cpp">
+      <Filter>Pliki źródłowe\scripting\core</Filter>
+    </ClCompile>
+    <ClCompile Include="src\scripting\core\script_error_boundary.cpp">
+      <Filter>Pliki źródłowe\scripting\core</Filter>
+    </ClCompile>
+    <ClCompile Include="src\scripting\runtime\luajit_runtime.cpp">
+      <Filter>Pliki źródłowe\scripting\runtime</Filter>
+    </ClCompile>
+    <ClCompile Include="src\scripting\runtime\lua_sandbox_bootstrap.cpp">
+      <Filter>Pliki źródłowe\scripting\runtime</Filter>
+    </ClCompile>
+    <ClCompile Include="src\scripting\runtime\lua_require.cpp">
+      <Filter>Pliki źródłowe\scripting\runtime</Filter>
+    </ClCompile>
+    <ClCompile Include="src\scripting\runtime\lua_callbacks.cpp">
+      <Filter>Pliki źródłowe\scripting\runtime</Filter>
+    </ClCompile>
+    <ClCompile Include="src\scripting\bridge\script_command.cpp">
+      <Filter>Pliki źródłowe\scripting\bridge</Filter>
+    </ClCompile>
+    <ClCompile Include="src\scripting\bridge\lua_host_context.cpp">
+      <Filter>Pliki źródłowe\scripting\bridge</Filter>
+    </ClCompile>
+    <ClCompile Include="src\scripting\bridge\lua_proxy.cpp">
+      <Filter>Pliki źródłowe\scripting\bridge</Filter>
+    </ClCompile>
+    <ClCompile Include="src\scripting\bridge\lua_ds_api.cpp">
+      <Filter>Pliki źródłowe\scripting\bridge</Filter>
+    </ClCompile>
+    <ClCompile Include="src\scripting\bridge\lua_curated_api.cpp">
+      <Filter>Pliki źródłowe\scripting\bridge</Filter>
+    </ClCompile>
+    <ClCompile Include="src\scripting\bridge\script_reflection_api.cpp">
+      <Filter>Pliki źródłowe\scripting\bridge</Filter>
+    </ClCompile>
+    <ClCompile Include="src\scripting\bridge\script_reflection_lookup.cpp">
+      <Filter>Pliki źródłowe\scripting\bridge</Filter>
+    </ClCompile>
+    <ClCompile Include="src\scripting\bridge\script_reflection_fields.cpp">
+      <Filter>Pliki źródłowe\scripting\bridge</Filter>
+    </ClCompile>
+    <ClCompile Include="src\scripting\bridge\script_reflection_invoke.cpp">
+      <Filter>Pliki źródłowe\scripting\bridge</Filter>
+    </ClCompile>
+    <ClCompile Include="src\scripting\handles\script_handle_registry.cpp">
+      <Filter>Pliki źródłowe\scripting\handles</Filter>
+    </ClCompile>
+    <ClCompile Include="src\scripting\abi\script_abi.cpp">
+      <Filter>Pliki źródłowe\scripting\abi</Filter>
     </ClCompile>
     <ClCompile Include="src\unity_resolver.cpp">
       <Filter>Pliki źródłowe</Filter>
@@ -572,6 +755,9 @@
     <ClCompile Include="src\gui\views\dock\utilities_dock.cpp">
       <Filter>Pliki źródłowe\gui\views\dock</Filter>
     </ClCompile>
+    <ClCompile Include="src\gui\views\dock\scripting_tab.cpp">
+      <Filter>Pliki źródłowe\gui\views\dock</Filter>
+    </ClCompile>
     <ClCompile Include="src\gui\state\navigation\history_validation.cpp">
       <Filter>Pliki źródłowe\gui\state\navigation</Filter>
     </ClCompile>
@@ -585,6 +771,9 @@
       <Filter>Pliki źródłowe\gui\state\fields</Filter>
     </ClCompile>
     <ClCompile Include="src\gui\state\runtime\call_log_model.cpp">
+      <Filter>Pliki źródłowe\gui\state\runtime</Filter>
+    </ClCompile>
+    <ClCompile Include="src\gui\state\runtime\script_model.cpp">
       <Filter>Pliki źródłowe\gui\state\runtime</Filter>
     </ClCompile>
     <ClCompile Include="src\gui\state\history\inspector_bookmarks_model.cpp">
@@ -605,5 +794,61 @@
     <ClCompile Include="src\dumper\sdk_exporter.cpp">
       <Filter>Pliki źródłowe\dumper</Filter>
     </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="docs\examples\README.md">
+      <Filter>Pliki dokumentów\docs\examples</Filter>
+    </None>
+    <None Include="docs\examples\Scripting-Guide.md">
+      <Filter>Pliki dokumentów\docs\examples</Filter>
+    </None>
+    <None Include="docs\examples\Manifest-Schema.md">
+      <Filter>Pliki dokumentów\docs\examples</Filter>
+    </None>
+    <None Include="docs\examples\manifest.template.json">
+      <Filter>Pliki dokumentów\docs\examples</Filter>
+    </None>
+    <None Include="docs\examples\manifest.curated.template.json">
+      <Filter>Pliki dokumentów\docs\examples</Filter>
+    </None>
+    <None Include="docs\examples\manifest.subjects-probe.example.json">
+      <Filter>Pliki dokumentów\docs\examples</Filter>
+    </None>
+    <None Include="docs\examples\packages\metadata-lookup\manifest.json">
+      <Filter>Pliki dokumentów\docs\examples\packages\metadata-lookup</Filter>
+    </None>
+    <None Include="docs\examples\packages\metadata-lookup\main.lua">
+      <Filter>Pliki dokumentów\docs\examples\packages\metadata-lookup</Filter>
+    </None>
+    <None Include="docs\examples\packages\heal-below-threshold\manifest.json">
+      <Filter>Pliki dokumentów\docs\examples\packages\heal-below-threshold</Filter>
+    </None>
+    <None Include="docs\examples\packages\heal-below-threshold\main.lua">
+      <Filter>Pliki dokumentów\docs\examples\packages\heal-below-threshold</Filter>
+    </None>
+    <None Include="docs\examples\packages\list-instances\manifest.json">
+      <Filter>Pliki dokumentów\docs\examples\packages\list-instances</Filter>
+    </None>
+    <None Include="docs\examples\packages\list-instances\main.lua">
+      <Filter>Pliki dokumentów\docs\examples\packages\list-instances</Filter>
+    </None>
+    <None Include="docs\examples\packages\invoke-method\manifest.json">
+      <Filter>Pliki dokumentów\docs\examples\packages\invoke-method</Filter>
+    </None>
+    <None Include="docs\examples\packages\invoke-method\main.lua">
+      <Filter>Pliki dokumentów\docs\examples\packages\invoke-method</Filter>
+    </None>
+    <None Include="docs\examples\packages\field-watcher\manifest.json">
+      <Filter>Pliki dokumentów\docs\examples\packages\field-watcher</Filter>
+    </None>
+    <None Include="docs\examples\packages\field-watcher\main.lua">
+      <Filter>Pliki dokumentów\docs\examples\packages\field-watcher</Filter>
+    </None>
+    <None Include="docs\examples\packages\curated-offset-read\manifest.json">
+      <Filter>Pliki dokumentów\docs\examples\packages\curated-offset-read</Filter>
+    </None>
+    <None Include="docs\examples\packages\curated-offset-read\main.lua">
+      <Filter>Pliki dokumentów\docs\examples\packages\curated-offset-read</Filter>
+    </None>
   </ItemGroup>
 </Project>

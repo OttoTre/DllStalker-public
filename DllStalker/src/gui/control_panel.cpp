@@ -93,7 +93,8 @@ void RunControlPanelMainLoop(const Window::ControlPanelWindow& window) {
         // Poll ~10 Hz when timer-driven UI is active; otherwise wait on input (INFINITE).
         const bool wantsPeriodicTick =
             state.fieldsAutoRefresh || state.fieldWatch.HasActiveEntriesCount() != 0
-            || state.transformModel.liveRefresh;
+            || state.transformModel.liveRefresh
+            || state.scriptModel.IsRuntimeActive();
         const DWORD idleWakeMs = wantsPeriodicTick ? 100u : INFINITE;
         if (Infra::WaitForRenderTriggerIfNeeded(requestRender, hadInputMessage, idleWakeMs)) {
             continue;
@@ -102,6 +103,8 @@ void RunControlPanelMainLoop(const Window::ControlPanelWindow& window) {
         if (Infra::WaitForFramePacingIfNeeded(nextFrameAt)) {
             continue;
         }
+
+        state.scriptModel.Pump();
 
         AppShell::BeginControlPanelFrame(window.hwnd);
         AppShell::RenderControlPanelContent(state);

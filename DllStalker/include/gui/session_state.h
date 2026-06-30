@@ -23,6 +23,7 @@
 #include "gui/state/navigation/inspector_navigation_feedback.h"
 #include "gui/state/core/inspector_model.h"
 #include "gui/state/runtime/invoke_request_queue.h"
+#include "gui/state/runtime/script_model.h"
 #include "gui/state/transform/transform_model.h"
 #include "gui/state/navigation/walker_controller.h"
 
@@ -57,6 +58,7 @@ struct ControlPanelSessionState {
     State::CallLogModel                  callLog{};
     State::InspectorNavigationFeedback   navigationFeedback{};
     State::TransformModel                transformModel{};
+    State::ScriptModel                   scriptModel{};
 
     // ---- Plain UI state ----------------------------------------------------
     void* selectedImage = nullptr;

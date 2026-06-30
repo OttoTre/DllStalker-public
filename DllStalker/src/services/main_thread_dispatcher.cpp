@@ -49,6 +49,7 @@ thread_local bool       tl_drainingOnThisThread = false;
 std::mutex              g_queueMutex;
 std::deque<Job>         g_queue;
 std::atomic<uint32_t>   g_droppedJobCount{0};
+std::atomic<uint64_t>   g_lastDrainTickMs{0};
 
 // This wrapper uses SEH to survive access violations from queued jobs.
 // Regular C++ catch blocks do not catch AV under /EHsc.
@@ -69,15 +70,25 @@ __declspec(noinline) void RunJobWithSEH(Job& job) noexcept {
 // each job runs without the lock so a long-running invoke can't block
 // Enqueue from other threads.
 void DrainOnce() {
+    bool drainedAny = false;
     for (size_t i = 0; i < kMaxJobsPerDrain; ++i) {
         Job job;
         {
             std::lock_guard<std::mutex> lock(g_queueMutex);
-            if (g_queue.empty()) return;
+            if (g_queue.empty()) {
+                if (drainedAny) {
+                    g_lastDrainTickMs.store(GetTickCount64(), std::memory_order_relaxed);
+                }
+                return;
+            }
             job = std::move(g_queue.front());
             g_queue.pop_front();
         }
         RunJobWithSEH(job);
+        drainedAny = true;
+    }
+    if (drainedAny) {
+        g_lastDrainTickMs.store(GetTickCount64(), std::memory_order_relaxed);
     }
 }
 
@@ -163,6 +174,17 @@ bool Enqueue(Job job) {
     return true;
 }
 
+bool TryEnqueueNoDrop(Job job) {
+    if (!job) return false;
+
+    std::lock_guard<std::mutex> lock(g_queueMutex);
+    if (g_queue.size() >= kMaxQueueDepth) {
+        return false;
+    }
+    g_queue.push_back(std::move(job));
+    return true;
+}
+
 bool InstallRuntimeInvokeHook() {
     std::call_once(g_installOnce, [] {
         g_hookInstalled.store(InstallRuntimeInvokeHookOnce());
@@ -189,6 +211,18 @@ uint32_t GetDroppedJobCount() {
 uint32_t GetQueueDepth() {
     std::lock_guard<std::mutex> lock(g_queueMutex);
     return static_cast<uint32_t>(g_queue.size());
+}
+
+bool IsOnMainThread() {
+    const DWORD mainThreadId = g_mainThreadId.load(std::memory_order_acquire);
+    if (mainThreadId == 0) {
+        return false;
+    }
+    return GetCurrentThreadId() == mainThreadId;
+}
+
+uint64_t GetLastDrainTickMs() {
+    return g_lastDrainTickMs.load(std::memory_order_relaxed);
 }
 } // namespace Engine::Services::MainThreadDispatcher
 

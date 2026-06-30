@@ -51,6 +51,7 @@ void RenderHistoryTab(ControlPanelSessionState& state) {
     }
 
     if (!ImGui::BeginChild("HistoryList", ImVec2(0, 0), true)) {
+        ImGui::EndChild();
         return;
     }
 

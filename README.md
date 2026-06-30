@@ -2,14 +2,30 @@
 
 DllStalker is a C++20 internal DLL toolkit for Unity games (IL2CPP and Mono). It combines runtime API resolution, preset-based hook installation and optional debug tooling (GUI + console) for reverse-engineering workflows.
 
-![Gif snippet](DllStalker/docs/Snippet.gif)
+![Gif snipper](DllStalker/docs/Snippet.gif)
 
 ## Core Goals
 
 - Resolve Unity runtime APIs dynamically (`il2cpp_*` / `mono_*`)
 - Reduce hardcoded offsets by resolving methods/fields at runtime
 - Install hooks through a self-registering preset system
-- Provide an optional debug workflow for live inspection and testing
+- Provide an optional debug workflow for live inspection, scripting, and testing
+
+## Documentation
+
+| Audience | Start here |
+|----------|------------|
+| **Scripting / modding** | [`docs/examples/Scripting-Guide.md`](docs/examples/Scripting-Guide.md) — Lua API; copy tutorial packages from [`docs/examples/packages/`](docs/examples/packages/) |
+| **Manifest fields** | [`docs/examples/Manifest-Schema.md`](docs/examples/Manifest-Schema.md) |
+
+Tutorial packages in this repo are reference copies only. **Copy** a package folder into `stalker_runtime/mods` next to the deployed `version.dll` (same directory as the game `.exe`). DllStalker does not load scripts from `docs/examples/` in the repository.
+
+For basic Safe mods, `manifest.json` is **optional**:
+
+- **Loose script** — any `*.lua` file placed **directly** under `mods/` (e.g. `mods/heal.lua`) is discovered by filename; no manifest needed.
+- **Folder package** — a subfolder under `mods/` without `manifest.json` must use **`main.lua`** as the entry file. For another name (e.g. `watcher.lua` inside a folder), add `manifest.json` with `"entry_file"`.
+
+Add `manifest.json` when you need a display name, Curated profile, a non-`main.lua` entry inside a folder, or non-default timing budgets — see [`Manifest-Schema.md`](docs/examples/Manifest-Schema.md).
 
 ## Main Components
 
@@ -19,7 +35,7 @@ DllStalker is a C++20 internal DLL toolkit for Unity games (IL2CPP and Mono). It
   - Exposes image/class/method/field lookup helpers
 
 - **UnityDumper** (`include/unity_dumper.h`, `src/unity_dumper.cpp` → `include/dumper/`, `src/dumper/`)
-  - Catalogs, field/method invocation, collection views, SDK export (`ENABLE_DUMPER` only)
+  - Catalogs, field/method invoke, collection views, SDK export (`ENABLE_DUMPER` only)
 
 - **Hook Services** (`include/services/`, `src/services/`)
   - MinHook installation helpers (`Hooks::`)
@@ -29,15 +45,41 @@ DllStalker is a C++20 internal DLL toolkit for Unity games (IL2CPP and Mono). It
 - **Types** (`include/types/`, `src/types/`)
   - POD structs, `memory_guard`, value decode/write, type classification
 
+- **Scripting** (`include/scripting/`, `src/scripting/`)
+  - LuaJIT runtime bridge for Safe and Curated script packages under `stalker_runtime/mods`
+  - Exposes `ds.*`, host-owned ticks/reload, opaque script handles and a flat Curated `DS_*` ABI
+
 - **Presets** (`include/presets/`, `src/presets/`)
   - Each preset lives in its own `.cpp` and self-registers
   - Installer chooses one preset name and applies all hooks from that preset
 
 - **GUI** (`include/gui/`, `src/gui/`)
   - Win32 + D3D11 + Dear ImGui control panel
-  - Runtime metadata browsing, field analysis, transform edit, live watch/plot, call logging, SDK export dock
+  - Runtime metadata browsing, field analysis, transform edit, live watch/plot, call logging, SDK export and scripting dock
 
-## Build Notes
+## Requirements & building
+
+### Prerequisites
+
+| Requirement | Notes |
+| --- | --- |
+| **OS** | Windows **x64** (build and runtime target) |
+| **Visual Studio** | 2022 or later with the **v145** platform toolset and **Desktop development with C++** workload |
+| **vcpkg** | Required for third-party dependencies; the project uses **manifest mode** (`VcpkgEnableManifest` in `DllStalker.vcxproj`) |
+| **Unity target** | IL2CPP (`GameAssembly.dll`) or Mono (`mono-2.0-bdwgc.dll`) game on Windows |
+
+Install and integrate vcpkg with Visual Studio (or set `VCPKG_ROOT` and use the MSBuild integration). On first build, vcpkg reads **`vcpkg.json`** from the repository and installs the declared packages (MinHook, Dear ImGui, LuaJIT, and their transitive deps) into a local `vcpkg_installed` tree. x64 configurations link those libraries **statically** (`VcpkgUseStatic`).
+
+### Build steps
+
+1. Clone the repository and open **`DllStalker.slnx`** at the repository root in Visual Studio.
+2. Set the active configuration to **`DebugRelease | x64`** for daily GUI work, or **`Release | x64`** for a hook-only payload without the dumper/GUI.
+3. Build the project (**Build → Build DllStalker**).
+4. Collect the output DLL from **`DllStalker/x64/<Configuration>/version.dll`** (for example `DllStalker/x64/DebugRelease/version.dll` when the project lives in a `DllStalker/` subfolder).
+
+If package restore fails, confirm vcpkg is on PATH or integrated in VS, then rebuild so manifest dependencies can download and compile.
+
+### Configuration vs. features
 
 `ENABLE_DUMPER` in `include/pch.h` is defined when `_DEBUG` or `DEBUGRELEASE`. It gates the GUI, dumper and related `types/` code.
 
@@ -69,7 +111,7 @@ Use **Debug \| x64** when you need the control panel plus native debugging.
 Use **DebugRelease \| x64** when smoke-testing the control panel.
 
 - Optimized like Release, with all `ENABLE_DUMPER` paths enabled
-- Typical build for inspector, dock tabs, transform tab and call logger validation
+- Typical build for inspector, dock tabs, transform tab, call logger and scripting validation
 
 ## Binary Placement
 
@@ -85,6 +127,17 @@ Build output: **version.dll**.
 
 Windows checks the game executable folder first for imported DLLs.
 Placing `version.dll` next to the game `.exe` makes the game load DllStalker at startup.
+DllStalker forwards the standard Windows `version.dll` exports to `C:\Windows\System32\version.dll`, so callers of the real version API keep working.
+
+## First run (Debug / DebugRelease)
+
+After a successful deploy of a dumper-enabled build:
+
+1. **Debug console** — a console window opens with bootstrap logs (`Unity.Init`, hook status, warnings).
+2. **Control panel** — a separate desktop window titled **DllStalker - Control Panel** opens automatically. It is **not** an in-game overlay; alt-tab to it like any other Win32 app.
+3. In the control panel, click **Init Dumper Engine** before browsing assemblies (see [GUI Capabilities](#gui-capabilities)).
+
+**Release \| x64** builds do not spawn the control panel or dumper UI; only the console-less hook/engine path runs.
 
 ## Debug Console
 
@@ -109,7 +162,7 @@ The debug GUI is for runtime exploration, controlled edits and safe invocation.
 
 **First step:** click **Init Dumper Engine** in the control panel before browsing assemblies.
 
-**Layout:** left metadata browser (~30%); right workspace (**Methods | Fields | Transform**); bottom **Utilities Dock** (**Bookmarks → History → Watcher → Logger → Exporter**). Dock tabs restore navigation or host live tooling; they do not replace the main inspector models.
+**Layout:** left metadata browser (~30%); right workspace (**Methods | Fields | Transform**); bottom **Utilities Dock** (**Bookmarks → History → Watcher → Logger → Exporter → Scripting**). Dock tabs restore navigation or host live tooling; they do not replace the main inspector models.
 
 ### Utilities Dock
 
@@ -120,6 +173,7 @@ The debug GUI is for runtime exploration, controlled edits and safe invocation.
 | **Watcher** | Live field watchlist; inner **Watchlist** / **Charts** for numeric plots |
 | **Logger** | Inner **Hooks** / **Log**; native call hooks and rolling args-only call log |
 | **Exporter** | Export field offsets (optional methods/enums) to C++ `.h` or C# `.cs` beside the injected DLL |
+| **Scripting** | Discover Lua packages, Start/Stop/Reload scripts, show console output and audit counters |
 
 From **Watcher** or **History**, **Jump** restores the workspace to the linked location.
 
@@ -182,6 +236,15 @@ Inspect and edit Transform/GameObject state via Unity API invokers (not raw offs
 - **Live** — periodic refetch; **Edit lock** — pause live refresh while editing
 - **Fetch / apply** — main-thread getters/setters for local/world position, rotation, scale, activeSelf
 - Requires the same main-thread capture as **Run** on Methods
+
+### Scripting dock
+
+Runtime-authored Lua scripts live under `stalker_runtime/mods` next to the injected `version.dll`.
+
+- **Safe** (default): `ds.*` lookup, instance field get/set, explicit-signature invoke, ticks, sleep, logging, and cooperative stop/reload.
+- **Curated**: adds `ds_abi` and `ds.types.Instance` helpers backed by DllStalker's `DS_*` ABI on the proxy DLL. Raw user `ffi` stays blocked.
+- Script-visible identity is an opaque handle, not a native pointer. Address helpers are for logs only; Curated raw addresses are transient.
+- **Getting started:** copy a folder from [`docs/examples/packages/`](docs/examples/packages/), edit the constants at the top of `main.lua`, then **Refresh** and **Start** in the dock. Full API: [`docs/examples/Scripting-Guide.md`](docs/examples/Scripting-Guide.md).
 
 ### Field editing
 
@@ -252,6 +315,14 @@ Navigate object graphs directly from field values:
 3. Choose format (C++ or C#), options and filename; export.
 4. Output is written next to the injected `version.dll`.
 
+### Workflow 8: Run a Lua script package
+
+1. Copy a tutorial folder from [`docs/examples/packages/`](docs/examples/packages/) into `stalker_runtime/mods` beside `version.dll` (or author your own folder with `main.lua`; `manifest.json` is optional for basic Safe scripts).
+2. Edit `IMAGE`, `CLASS`, and other constants at the top of `main.lua` for the target game.
+3. Open **Utilities → Scripting** and click **Refresh**.
+4. Select the package, then click **Start**.
+5. Use **Stop** or **Reload** while iterating in an external editor; tick scripts keep running until stopped.
+
 ## Creating a New Preset (Example)
 
 Presets self-register at static init: add a new `.cpp` under `src/presets/` and list it in `DllStalker.vcxproj`.
@@ -321,6 +392,9 @@ In `src/services/hook_installer.cpp`, set:
 
 ```text
 DllStalker/
+├── docs/
+│   └── examples/
+│       └── packages/
 ├── include/
 │   ├── engine/
 │   ├── dumper/
@@ -339,6 +413,12 @@ DllStalker/
 │   │       ├── transform/
 │   │       └── dock/
 │   ├── presets/
+│   ├── scripting/
+│   │   ├── abi/
+│   │   ├── bridge/
+│   │   ├── core/
+│   │   ├── handles/
+│   │   └── runtime/
 │   ├── services/
 │   └── types/
 └── src/
@@ -359,6 +439,12 @@ DllStalker/
     │       ├── transform/
     │       └── dock/
     ├── presets/
+    ├── scripting/
+    │   ├── abi/
+    │   ├── bridge/
+    │   ├── core/
+    │   ├── handles/
+    │   └── runtime/
     ├── services/
     └── types/
 ```
@@ -403,6 +489,16 @@ This is expected behavior:
 - **Log** disabled: no native address, unknown Mono params, unsupported arg types or too many register arguments.
 - **No lines:** hook not armed, method not called yet or hook removed; check **Logger → Hooks**.
 - **Cap / install errors:** max **16** hooks; duplicate native target or MinHook install failure shows a status toast.
+
+### Scripting: package does not appear or Start fails
+
+- Deploy under `stalker_runtime/mods` next to `version.dll`, not from the repo `docs/examples/` path.
+- Directory packages need a root-level entry file. Without `manifest.json`, the entry must be **`main.lua`**. With `manifest.json`, set `"entry_file"` for another root-level name.
+- Loose `.lua` files directly under `mods` run as Safe scripts with default timing budgets.
+- `entry_file` must be a file name in the package root, not a nested or absolute path.
+- `IMAGE` strings must match runtime assembly names (often `Assembly-CSharp.dll`, not always the short name).
+- Curated helpers require `"profile": "Curated"` (or `"Advanced"`) in `manifest.json`; unknown profiles run as Safe with a warning.
+- See [`docs/examples/Scripting-Guide.md`](docs/examples/Scripting-Guide.md) and [`docs/examples/Manifest-Schema.md`](docs/examples/Manifest-Schema.md).
 
 ## ⚠️ Important Disclaimer & Legal Notice
 

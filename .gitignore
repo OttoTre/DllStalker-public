@@ -370,3 +370,5 @@ FodyWeavers.xsd
 
 # GitHub metadata/workflow folder (local preference)
 .github/
+
+# Private documentation files

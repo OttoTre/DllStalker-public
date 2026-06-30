@@ -121,7 +121,7 @@ void RenderMainLayout(ControlPanelSessionState& state, Views::CopyFeedbackState&
     const float layoutChrome = style.ItemSpacing.y + style.ChildBorderSize * 2.0f;
     const float layoutH = (std::max)(0.0f, avail.y - layoutChrome);
 
-    float dockH = (std::max)(minDockH, layoutH * 0.28f);
+    float dockH = (std::max)(minDockH, layoutH * 0.35f);
     float mainH = layoutH - dockH;
     if (mainH < minMainH) {
         mainH = (std::min)(minMainH, layoutH);

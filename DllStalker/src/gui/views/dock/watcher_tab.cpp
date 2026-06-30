@@ -85,6 +85,7 @@ void RenderSelectedPlot(const Gui::State::WatchedField& entry) {
 void RenderWatcherWatchlist(ControlPanelSessionState& state,
                             const std::vector<Gui::State::WatchedField>& entries) {
     if (!ImGui::BeginChild("WatcherWatchlist", ImVec2(0, 0), false)) {
+        ImGui::EndChild();
         return;
     }
 
@@ -195,6 +196,7 @@ void RenderWatcherCharts(ControlPanelSessionState& state,
     }
 
     if (!ImGui::BeginChild("WatcherChartPlot", ImVec2(0, 0), false)) {
+        ImGui::EndChild();
         return;
     }
     RenderSelectedPlot(*entry);

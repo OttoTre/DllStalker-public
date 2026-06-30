@@ -44,8 +44,12 @@ void TagCurrentThreadAsOurs();
 
 // ---- Queue + install ----
 // Push a job onto the queue. Safe to call from any thread. Returns false
-// (and drops the job with a console warning) if the queue is full.
+// if job is empty. When full, drops the oldest job and enqueues the new one.
 bool Enqueue(Job job);
+
+// Push a job without drop-oldest semantics. Returns false if job is empty
+// or the queue is already at capacity. Used by synchronized script commands.
+bool TryEnqueueNoDrop(Job job);
 
 // Install MinHook on Engine::Unity.invoker.Raw(). Returns true on success.
 // Idempotent: subsequent calls return the cached install state. Must be
@@ -69,6 +73,12 @@ uint32_t GetDroppedJobCount();
 
 // Snapshot of pending jobs (under internal mutex).
 uint32_t GetQueueDepth();
+
+// True when the captured Unity main thread is known and matches the caller.
+bool IsOnMainThread();
+
+// GetTickCount64() timestamp of the most recent dispatcher drain batch; 0 if never drained.
+uint64_t GetLastDrainTickMs();
 } // namespace MainThreadDispatcher
 } // namespace Engine::Services
 

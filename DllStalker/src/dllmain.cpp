@@ -57,6 +57,7 @@ static DWORD WINAPI DllStalkerBootstrap(LPVOID) {
     Hooks::StartHooking();
 
     printf("[*] Unity engine initialized successfully.\n");
+
     return 0;
 }
 
