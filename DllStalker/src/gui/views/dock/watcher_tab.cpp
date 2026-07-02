@@ -21,6 +21,35 @@ namespace Gui::Views
 {
 namespace
 {
+constexpr const char* WATCHER_INTERVAL_LABELS[] = { "100ms", "250ms", "500ms", "1s", "2s", "5s" };
+constexpr const char* WATCHER_PLOT_MODE_LABELS[] = { "Every sample", "On change" };
+constexpr const char* WATCHER_ENTRY_PLOT_MODE_LABELS[] = { "Default", "Every sample", "On change" };
+
+int PlotModeIndex(Gui::State::WatchPlotMode mode) {
+    return mode == Gui::State::WatchPlotMode::OnChange ? 1 : 0;
+}
+
+Gui::State::WatchPlotMode PlotModeFromIndex(int index) {
+    return index == 1 ? Gui::State::WatchPlotMode::OnChange
+                      : Gui::State::WatchPlotMode::EverySample;
+}
+
+int EntryPlotModeIndex(const Gui::State::WatchedField& entry) {
+    if (!entry.hasCustomPlotMode) {
+        return 0;
+    }
+    return PlotModeIndex(entry.plotMode) + 1;
+}
+
+Gui::State::WatchPlotMode EntryPlotModeFromIndex(int index,
+                                                 Gui::State::WatchPlotMode defaultMode) {
+    if (index == 0) {
+        return defaultMode;
+    }
+    return index == 2 ? Gui::State::WatchPlotMode::OnChange
+                      : Gui::State::WatchPlotMode::EverySample;
+}
+
 std::string WatchEntryLabel(const Gui::State::WatchedField& entry) {
     if (!entry.className.empty() && entry.className != "<class>") {
         return entry.className + "::" + entry.fieldName;
@@ -195,6 +224,15 @@ void RenderWatcherCharts(ControlPanelSessionState& state,
         return;
     }
 
+    ImGui::SameLine();
+    ImGui::SetNextItemWidth(130.0f);
+    int modeIndex = EntryPlotModeIndex(*entry);
+    if (ImGui::Combo("Mode", &modeIndex, WATCHER_ENTRY_PLOT_MODE_LABELS, IM_ARRAYSIZE(WATCHER_ENTRY_PLOT_MODE_LABELS))) {
+        state.fieldWatch.SetEntryPlotMode(entry->id,
+                                          EntryPlotModeFromIndex(modeIndex, state.fieldWatch.DefaultPlotMode()),
+                                          modeIndex != 0);
+    }
+
     if (!ImGui::BeginChild("WatcherChartPlot", ImVec2(0, 0), false)) {
         ImGui::EndChild();
         return;
@@ -207,6 +245,28 @@ void RenderWatcherCharts(ControlPanelSessionState& state,
 void RenderWatcherTab(ControlPanelSessionState& state) {
     if (ImGui::Button("Clear all##watcher")) {
         state.fieldWatch.Clear();
+    }
+
+    ImGui::SameLine();
+    ImGui::TextUnformatted("Poll");
+    ImGui::SameLine();
+    ImGui::SetNextItemWidth(84.0f);
+    if (ImGui::Combo("##WatcherPollInterval",
+                     &state.fieldWatch.sampleIntervalIndex,
+                     WATCHER_INTERVAL_LABELS,
+                     IM_ARRAYSIZE(WATCHER_INTERVAL_LABELS))) {
+        state.fieldWatch.SetSampleIntervalIndex(state.fieldWatch.sampleIntervalIndex);
+    }
+
+    ImGui::SameLine();
+    ImGui::TextUnformatted("Default chart");
+    ImGui::SameLine();
+    ImGui::SetNextItemWidth(118.0f);
+    if (ImGui::Combo("##WatcherDefaultPlotMode",
+                     &state.fieldWatch.defaultPlotModeIndex,
+                     WATCHER_PLOT_MODE_LABELS,
+                     IM_ARRAYSIZE(WATCHER_PLOT_MODE_LABELS))) {
+        state.fieldWatch.SetDefaultPlotModeIndex(state.fieldWatch.defaultPlotModeIndex);
     }
 
     const std::vector<Gui::State::WatchedField> entries = state.fieldWatch.SnapshotEntries();

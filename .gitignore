@@ -371,4 +371,5 @@ FodyWeavers.xsd
 # GitHub metadata/workflow folder (local preference)
 .github/
 
-# Private documentation files
+# Include incorrectly excluded packages
+!/DllStalker/docs/examples/packages/**

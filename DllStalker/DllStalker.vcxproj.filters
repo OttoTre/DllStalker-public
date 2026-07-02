@@ -166,35 +166,29 @@
     <Filter Include="Pliki dokumentów\docs">
       <UniqueIdentifier>{B7C8D9E0-F1A2-4356-8790-ABCDEF012345}</UniqueIdentifier>
     </Filter>
-    <Filter Include="Pliki dokumentów\docs\overview">
-      <UniqueIdentifier>{052fcaf3-2f2a-44de-892a-7a5485375ca7}</UniqueIdentifier>
-    </Filter>
     <Filter Include="Pliki dokumentów\docs\examples">
       <UniqueIdentifier>{C8D9E0F1-A2B3-4567-8901-234567890ABC}</UniqueIdentifier>
     </Filter>
     <Filter Include="Pliki dokumentów\docs\examples\packages">
-      <UniqueIdentifier>{B8C9D0E1-F2A3-4567-8901-234567890DEF}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="Pliki dokumentów\docs\examples\packages\metadata-lookup">
-      <UniqueIdentifier>{D9E0F1A2-B3C4-5678-9012-34567890ABCD}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="Pliki dokumentów\docs\examples\packages\heal-below-threshold">
-      <UniqueIdentifier>{E0F1A2B3-C4D5-6789-0123-4567890ABCDE}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="Pliki dokumentów\docs\examples\packages\list-instances">
-      <UniqueIdentifier>{F1A2B3C4-D5E6-7890-1234-567890ABCDEF}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="Pliki dokumentów\docs\examples\packages\invoke-method">
-      <UniqueIdentifier>{A2B3C4D5-E6F7-8901-2345-67890ABCDEF0}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="Pliki dokumentów\docs\examples\packages\field-watcher">
-      <UniqueIdentifier>{B3C4D5E6-F7A8-9012-3456-7890ABCDEF01}</UniqueIdentifier>
+      <UniqueIdentifier>{A1EE73FC-79C2-4F37-A32D-70A5B4A5CC24}</UniqueIdentifier>
     </Filter>
     <Filter Include="Pliki dokumentów\docs\examples\packages\curated-offset-read">
-      <UniqueIdentifier>{C4D5E6F7-A8B9-0123-4567-890ABCDEF012}</UniqueIdentifier>
+      <UniqueIdentifier>{A9CFA93A-4E34-4FD0-90AA-D0335EAF6D9C}</UniqueIdentifier>
     </Filter>
-    <Filter Include="Pliki dokumentów\docs\scripting">
-      <UniqueIdentifier>{D5E6F7A8-B9C0-1234-5678-90ABCDEF0123}</UniqueIdentifier>
+    <Filter Include="Pliki dokumentów\docs\examples\packages\field-watcher">
+      <UniqueIdentifier>{8FA80795-6F5F-4A67-83DA-B7C823F15EA0}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Pliki dokumentów\docs\examples\packages\heal-below-threshold">
+      <UniqueIdentifier>{BB5AB706-15F2-438D-B58C-6EA11AA0D356}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Pliki dokumentów\docs\examples\packages\invoke-method">
+      <UniqueIdentifier>{7E4EF9A2-460E-47F7-BB5F-4DC1C5D8E0BA}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Pliki dokumentów\docs\examples\packages\list-instances">
+      <UniqueIdentifier>{C84E9E43-FCC6-4EF1-9E4E-8142FB0D1D54}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Pliki dokumentów\docs\examples\packages\metadata-lookup">
+      <UniqueIdentifier>{FAFF0CCF-969E-40C7-A163-C9A4D3BA0B8C}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
   <ItemGroup>
@@ -811,44 +805,41 @@
     <None Include="docs\examples\manifest.curated.template.json">
       <Filter>Pliki dokumentów\docs\examples</Filter>
     </None>
-    <None Include="docs\examples\manifest.subjects-probe.example.json">
-      <Filter>Pliki dokumentów\docs\examples</Filter>
-    </None>
-    <None Include="docs\examples\packages\metadata-lookup\manifest.json">
-      <Filter>Pliki dokumentów\docs\examples\packages\metadata-lookup</Filter>
-    </None>
-    <None Include="docs\examples\packages\metadata-lookup\main.lua">
-      <Filter>Pliki dokumentów\docs\examples\packages\metadata-lookup</Filter>
-    </None>
-    <None Include="docs\examples\packages\heal-below-threshold\manifest.json">
-      <Filter>Pliki dokumentów\docs\examples\packages\heal-below-threshold</Filter>
-    </None>
-    <None Include="docs\examples\packages\heal-below-threshold\main.lua">
-      <Filter>Pliki dokumentów\docs\examples\packages\heal-below-threshold</Filter>
-    </None>
-    <None Include="docs\examples\packages\list-instances\manifest.json">
-      <Filter>Pliki dokumentów\docs\examples\packages\list-instances</Filter>
-    </None>
-    <None Include="docs\examples\packages\list-instances\main.lua">
-      <Filter>Pliki dokumentów\docs\examples\packages\list-instances</Filter>
-    </None>
-    <None Include="docs\examples\packages\invoke-method\manifest.json">
-      <Filter>Pliki dokumentów\docs\examples\packages\invoke-method</Filter>
-    </None>
-    <None Include="docs\examples\packages\invoke-method\main.lua">
-      <Filter>Pliki dokumentów\docs\examples\packages\invoke-method</Filter>
-    </None>
-    <None Include="docs\examples\packages\field-watcher\manifest.json">
-      <Filter>Pliki dokumentów\docs\examples\packages\field-watcher</Filter>
-    </None>
-    <None Include="docs\examples\packages\field-watcher\main.lua">
-      <Filter>Pliki dokumentów\docs\examples\packages\field-watcher</Filter>
+    <None Include="docs\examples\packages\curated-offset-read\main.lua">
+      <Filter>Pliki dokumentów\docs\examples\packages\curated-offset-read</Filter>
     </None>
     <None Include="docs\examples\packages\curated-offset-read\manifest.json">
       <Filter>Pliki dokumentów\docs\examples\packages\curated-offset-read</Filter>
     </None>
-    <None Include="docs\examples\packages\curated-offset-read\main.lua">
-      <Filter>Pliki dokumentów\docs\examples\packages\curated-offset-read</Filter>
+    <None Include="docs\examples\packages\field-watcher\main.lua">
+      <Filter>Pliki dokumentów\docs\examples\packages\field-watcher</Filter>
+    </None>
+    <None Include="docs\examples\packages\field-watcher\manifest.json">
+      <Filter>Pliki dokumentów\docs\examples\packages\field-watcher</Filter>
+    </None>
+    <None Include="docs\examples\packages\heal-below-threshold\main.lua">
+      <Filter>Pliki dokumentów\docs\examples\packages\heal-below-threshold</Filter>
+    </None>
+    <None Include="docs\examples\packages\heal-below-threshold\manifest.json">
+      <Filter>Pliki dokumentów\docs\examples\packages\heal-below-threshold</Filter>
+    </None>
+    <None Include="docs\examples\packages\invoke-method\main.lua">
+      <Filter>Pliki dokumentów\docs\examples\packages\invoke-method</Filter>
+    </None>
+    <None Include="docs\examples\packages\invoke-method\manifest.json">
+      <Filter>Pliki dokumentów\docs\examples\packages\invoke-method</Filter>
+    </None>
+    <None Include="docs\examples\packages\list-instances\main.lua">
+      <Filter>Pliki dokumentów\docs\examples\packages\list-instances</Filter>
+    </None>
+    <None Include="docs\examples\packages\list-instances\manifest.json">
+      <Filter>Pliki dokumentów\docs\examples\packages\list-instances</Filter>
+    </None>
+    <None Include="docs\examples\packages\metadata-lookup\main.lua">
+      <Filter>Pliki dokumentów\docs\examples\packages\metadata-lookup</Filter>
+    </None>
+    <None Include="docs\examples\packages\metadata-lookup\manifest.json">
+      <Filter>Pliki dokumentów\docs\examples\packages\metadata-lookup</Filter>
     </None>
   </ItemGroup>
 </Project>

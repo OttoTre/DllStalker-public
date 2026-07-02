@@ -125,6 +125,56 @@ bool EntriesMatchField(const WatchedField& entry,
     return entry.fieldName == fieldKey
         && NavigationFingerprintsEqual(entry.restoreSnapshot, currentSnap);
 }
+
+WatchPlotMode PlotModeFromIndex(int index) {
+    return index == 1 ? WatchPlotMode::OnChange : WatchPlotMode::EverySample;
+}
+
+bool IsValidSampleIntervalIndex(int index) {
+    return index >= 0 && index < static_cast<int>(FieldWatchModel::kSampleIntervalCount);
+}
+
+bool IsValidPlotModeIndex(int index) {
+    return index >= 0 && index <= 1;
+}
+
+bool PlotSamplesDiffer(const std::string& typeName, float previous, float current) {
+    using Cat = Engine::Types::TypeCategory;
+    switch (Engine::Types::GetCategory(typeName)) {
+    case Cat::I4:
+    case Cat::I8:
+        return previous != current;
+    case Cat::R4:
+    case Cat::R8: {
+        const float diff = std::fabs(current - previous);
+        const float scale =
+            (std::max)(1.0f, (std::max)(std::fabs(previous), std::fabs(current)));
+        return diff > (1.0e-5f * scale);
+    }
+    default:
+        return true;
+    }
+}
+
+bool ShouldPushPlotSample(const WatchedField& entry,
+                          float sample,
+                          const std::string& display) {
+    if (entry.plotMode == WatchPlotMode::EverySample) {
+        return true;
+    }
+    if (!entry.hasLastPlotSample) {
+        return true;
+    }
+    using Cat = Engine::Types::TypeCategory;
+    switch (Engine::Types::GetCategory(entry.typeName)) {
+    case Cat::I4:
+    case Cat::I8:
+        return entry.lastPlotDisplay != display;
+    default:
+        break;
+    }
+    return PlotSamplesDiffer(entry.typeName, entry.lastPlotSample, sample);
+}
 } // namespace
 
 bool IsWatchableFieldType(const std::string& typeName) {
@@ -278,6 +328,7 @@ FieldWatchModel::ToggleResult FieldWatchModel::Toggle(ControlPanelSessionState& 
     entry.isStatic        = isStatic;
     entry.restoreSnapshot = currentSnap;
     entry.plotEnabled     = IsPlottableFieldType(entry.typeName);
+    entry.plotMode        = DefaultPlotMode();
     entry.plot.Clear();
     const uint32_t newId = entry.id;
 
@@ -334,6 +385,62 @@ bool FieldWatchModel::SetSelectedPlotWatchId(uint32_t id) {
     return true;
 }
 
+bool FieldWatchModel::SetSampleIntervalIndex(int index) {
+    if (!IsValidSampleIntervalIndex(index)) {
+        return false;
+    }
+    sampleIntervalIndex = index;
+    sampleIntervalMs.store(kSampleIntervalMs[static_cast<size_t>(index)], std::memory_order_relaxed);
+    NotifySampler();
+    return true;
+}
+
+bool FieldWatchModel::SetDefaultPlotModeIndex(int index) {
+    if (!IsValidPlotModeIndex(index)) {
+        return false;
+    }
+
+    const WatchPlotMode mode = PlotModeFromIndex(index);
+    defaultPlotModeIndex = index;
+
+    {
+        std::lock_guard<std::mutex> lock(entriesMutex);
+        for (auto& entry : entries) {
+            if (!entry.plotEnabled || entry.hasCustomPlotMode || entry.plotMode == mode) {
+                continue;
+            }
+            entry.plotMode = mode;
+            ResetPlotTrackingLocked(entry, true);
+        }
+    }
+
+    NotifySampler();
+    return true;
+}
+
+bool FieldWatchModel::SetEntryPlotMode(uint32_t id, WatchPlotMode mode, bool custom) {
+    {
+        std::lock_guard<std::mutex> lock(entriesMutex);
+        WatchedField* entry = FindLocked(id);
+        if (!entry || !entry->plotEnabled) {
+            return false;
+        }
+
+        entry->hasCustomPlotMode = custom;
+        if (entry->plotMode != mode) {
+            entry->plotMode = mode;
+            ResetPlotTrackingLocked(*entry, true);
+        }
+    }
+
+    NotifySampler();
+    return true;
+}
+
+WatchPlotMode FieldWatchModel::DefaultPlotMode() const {
+    return PlotModeFromIndex(defaultPlotModeIndex);
+}
+
 bool FieldWatchModel::ConsumeFocusChartsTab() {
     if (!focusChartsTab) {
         return false;
@@ -361,6 +468,15 @@ void FieldWatchModel::EnsureValidPlotSelectionLocked() {
             selectedPlotWatchId = entry.id;
             return;
         }
+    }
+}
+
+void FieldWatchModel::ResetPlotTrackingLocked(WatchedField& entry, bool clearPlot) {
+    entry.hasLastPlotSample = false;
+    entry.lastPlotSample = 0.0f;
+    entry.lastPlotDisplay.clear();
+    if (clearPlot) {
+        entry.plot.Clear();
     }
 }
 
@@ -424,11 +540,21 @@ void FieldWatchModel::SampleOnce() {
         if (!entry) {
             continue;
         }
+        if (result.stale) {
+            entry->lastDisplay = std::move(result.display);
+            entry->stale = result.stale;
+            entry->hasLastPlotSample = false;
+            entry->lastPlotDisplay.clear();
+            continue;
+        }
+        if (result.hasSample && ShouldPushPlotSample(*entry, result.sample, result.display)) {
+            entry->plot.Push(result.sample);
+            entry->lastPlotSample = result.sample;
+            entry->lastPlotDisplay = result.display;
+            entry->hasLastPlotSample = true;
+        }
         entry->lastDisplay = std::move(result.display);
         entry->stale = result.stale;
-        if (result.hasSample) {
-            entry->plot.Push(result.sample);
-        }
     }
 }
 
@@ -438,11 +564,11 @@ std::vector<WatchedField> FieldWatchModel::SnapshotEntries() const {
 }
 
 void FieldWatchModel::NotifySampler() {
+    samplerWakeGeneration.fetch_add(1, std::memory_order_relaxed);
     samplerWake.notify_all();
 }
 
 void FieldWatchModel::SamplerLoop(std::stop_token stopToken) {
-    using namespace std::chrono_literals;
     while (!stopToken.stop_requested()) {
         {
             std::unique_lock<std::mutex> lock(entriesMutex);
@@ -456,8 +582,18 @@ void FieldWatchModel::SamplerLoop(std::stop_token stopToken) {
         SampleOnce();
 
         {
+            const int intervalMs = sampleIntervalMs.load(std::memory_order_relaxed);
+            const uint64_t wakeGeneration =
+                samplerWakeGeneration.load(std::memory_order_relaxed);
             std::unique_lock<std::mutex> lock(entriesMutex);
-            samplerWake.wait_for(lock, stopToken, 100ms, [&] { return entries.empty(); });
+            samplerWake.wait_for(lock,
+                                 stopToken,
+                                 std::chrono::milliseconds((std::max)(1, intervalMs)),
+                                 [&] {
+                                     return entries.empty()
+                                         || samplerWakeGeneration.load(std::memory_order_relaxed)
+                                                != wakeGeneration;
+                                 });
         }
     }
 }

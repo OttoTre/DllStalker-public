@@ -24,6 +24,8 @@ struct ControlPanelSessionState;
 
 namespace Gui::State
 {
+enum class WatchPlotMode { EverySample, OnChange };
+
 struct FieldPlotSeries {
     static constexpr size_t kCapacity = 100;
 
@@ -51,17 +53,30 @@ struct WatchedField {
     bool        stale = false;
     FieldPlotSeries plot{};
     bool        plotEnabled = false;
+    WatchPlotMode plotMode = WatchPlotMode::EverySample;
+    bool        hasCustomPlotMode = false;
+    bool        hasLastPlotSample = false;
+    float       lastPlotSample = 0.0f;
+    std::string lastPlotDisplay{};
 };
 
 struct FieldWatchModel {
     static constexpr size_t kMaxEntries = 32;
+    static constexpr size_t kSampleIntervalCount = 6;
+    static constexpr std::array<int, kSampleIntervalCount> kSampleIntervalMs = {
+        100, 250, 500, 1000, 2000, 5000
+    };
 
     std::vector<WatchedField> entries{};
     uint32_t                  nextId = 1;
     uint32_t                  selectedPlotWatchId = 0;
     bool                      focusChartsTab      = false;
+    int                       sampleIntervalIndex = 0;
+    int                       defaultPlotModeIndex = 0;
     mutable std::mutex        entriesMutex{};
     std::atomic<size_t>       activeCount{0};
+    std::atomic<int>          sampleIntervalMs{100};
+    std::atomic<uint64_t>     samplerWakeGeneration{0};
 
     bool IsWatchable(const Engine::FieldInfo& field) const;
 
@@ -78,6 +93,10 @@ struct FieldWatchModel {
 
     size_t CountPlottable() const;
     bool   SetSelectedPlotWatchId(uint32_t id);
+    bool   SetSampleIntervalIndex(int index);
+    bool   SetDefaultPlotModeIndex(int index);
+    bool   SetEntryPlotMode(uint32_t id, WatchPlotMode mode, bool custom);
+    WatchPlotMode DefaultPlotMode() const;
     bool   ConsumeFocusChartsTab();
     void   EnsureValidPlotSelection();
 
@@ -85,6 +104,7 @@ private:
     const WatchedField* FindLocked(uint32_t id) const;
     WatchedField*       FindLocked(uint32_t id);
     void                EnsureValidPlotSelectionLocked();
+    void                ResetPlotTrackingLocked(WatchedField& entry, bool clearPlot);
     void                NotifySampler();
     void                SamplerLoop(std::stop_token stopToken);
     std::condition_variable_any samplerWake{};

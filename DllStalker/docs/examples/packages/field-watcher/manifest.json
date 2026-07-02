@@ -1,0 +1,5 @@
+{
+  "schema_version": 1,
+  "name": "Field Watcher Tutorial",
+  "tick_interval_ms": 250
+}

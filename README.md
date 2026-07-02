@@ -170,7 +170,7 @@ The debug GUI is for runtime exploration, controlled edits and safe invocation.
 | --- | --- |
 | **Bookmarks** | Saved inspector locations; restore with shared navigation validation |
 | **History** | Navigation timeline and audit rows (read-only; distinct from call log) |
-| **Watcher** | Live field watchlist; inner **Watchlist** / **Charts** for numeric plots |
+| **Watcher** | Live field watchlist (cap 32); configurable **Poll** interval; **Default chart** mode; inner **Watchlist** / **Charts** for numeric plots |
 | **Logger** | Inner **Hooks** / **Log**; native call hooks and rolling args-only call log |
 | **Exporter** | Export field offsets (optional methods/enums) to C++ `.h` or C# `.cs` beside the injected DLL |
 | **Scripting** | Discover Lua packages, Start/Stop/Reload scripts, show console output and audit counters |
@@ -207,6 +207,13 @@ On the **Fields** tab (analysis toolbar):
 - **`[W]`** — add/remove a field on the **Watcher** dock tab (live reads; plottable numerics can open **Charts**).
 - **`[T]`** — focus **Transform** on a Transform/GameObject pointer field.
 - **Enum fields** — decoded literals; editable via combo when supported.
+
+**Watcher** dock (**Utilities → Watcher**):
+
+- **Poll** — how often watched values are read: `100ms`, `250ms`, `500ms`, `1s`, `2s`, or `5s` (default `100ms`). This is separate from **Fields** auto-refresh, which reloads inspector metadata.
+- **Default chart** — `Every sample` (ring buffer of recent points) or `On change` (plot only when the decoded value changes; better for slow-updating fields). New watches inherit this default.
+- **Watchlist** — live value column, **Jump** (restore navigation), **Remove**, **Plot** (focus **Charts** for plottable int/float fields).
+- **Charts** — select a series; **Mode** per series: `Default` (follow toolbar default), `Every sample`, or `On change`. Charts use evenly spaced points (no wall-clock axis).
 
 ### Methods tab (Run and Log)
 
@@ -292,7 +299,9 @@ Navigate object graphs directly from field values:
 
 1. Select image, class and instance; open **Fields**.
 2. Toggle **`[W]`** on a numeric field.
-3. Open **Utilities → Watcher** for live values; use **Plot** on plottable rows to switch to **Charts**.
+3. Open **Utilities → Watcher** for live values.
+4. Optional: set **Poll** (e.g. `2s` for slow fields) and **Default chart** → `On change` before or after adding watches.
+5. Use **Plot** on a plottable row to open **Charts**, or pick a series there; override **Mode** per series if needed (e.g. one field every sample, another on change only).
 
 ### Workflow 5: Log native method calls
 
