@@ -1,6 +1,8 @@
 #pragma once
 
-#include "pch.h"
+#include "build_config.h"
+
+#ifdef ENABLE_DUMPER
 
 #include <windows.h>
 #include <chrono>
@@ -16,3 +18,5 @@ void UpdateFramePacing(bool hadInputMessage,
     std::chrono::steady_clock::time_point& nextFrameAt);
 bool IsCrashHandler();
 } // namespace Gui::Infra
+
+#endif // ENABLE_DUMPER

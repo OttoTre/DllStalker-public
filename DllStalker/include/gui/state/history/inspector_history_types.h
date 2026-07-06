@@ -1,6 +1,8 @@
 #pragma once
 
-#include "pch.h"
+#include "build_config.h"
+
+#ifdef ENABLE_DUMPER
 
 #include <string>
 #include <variant>
@@ -40,3 +42,5 @@ inline HistoryEntryKind EntryKind(const HistoryEntry& e) {
     return static_cast<HistoryEntryKind>(e.payload.index());
 }
 } // namespace Gui::State
+
+#endif // ENABLE_DUMPER

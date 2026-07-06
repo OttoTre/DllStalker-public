@@ -1,6 +1,8 @@
 #pragma once
 
-#include "pch.h"
+#include "build_config.h"
+
+#ifdef ENABLE_DUMPER
 
 #include <deque>
 
@@ -18,3 +20,5 @@ struct InspectorHistoryModel {
     size_t Size() const { return entries.size(); }
 };
 } // namespace Gui::State
+
+#endif // ENABLE_DUMPER

@@ -1,6 +1,8 @@
 #pragma once
 
-#include "pch.h"
+#include "build_config.h"
+
+#ifdef ENABLE_DUMPER
 
 #include <cstddef>
 #include <memory>
@@ -24,3 +26,5 @@ BreadcrumbValidationResult ValidateBreadcrumbStack(
     const std::shared_ptr<Engine::UnityDumper>& dumper,
     size_t* outFailedIndex = nullptr);
 } // namespace Gui::State::HistoryValidation
+
+#endif // ENABLE_DUMPER

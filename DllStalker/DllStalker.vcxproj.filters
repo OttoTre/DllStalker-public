@@ -207,6 +207,9 @@
     <ClInclude Include="include\pch.h">
       <Filter>Pliki nagłówkowe</Filter>
     </ClInclude>
+    <ClInclude Include="include\build_config.h">
+      <Filter>Pliki nagłówkowe</Filter>
+    </ClInclude>
     <ClInclude Include="include\scripting\script_engine.h">
       <Filter>Pliki nagłówkowe\scripting</Filter>
     </ClInclude>

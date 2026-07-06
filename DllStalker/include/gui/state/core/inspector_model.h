@@ -1,6 +1,8 @@
 #pragma once
 
-#include "pch.h"
+#include "build_config.h"
+
+#ifdef ENABLE_DUMPER
 
 #include <mutex>
 #include <vector>
@@ -50,3 +52,5 @@ struct InspectorModel
     InspectorCache Snapshot();
 };
 } // namespace Gui::State
+
+#endif // ENABLE_DUMPER

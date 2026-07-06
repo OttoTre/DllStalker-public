@@ -1,8 +1,6 @@
 #pragma once
 
-#include "pch.h"
-
-#include <Windows.h>
+#include <windows.h>
 
 #include "engine/unity_exports.h"
 

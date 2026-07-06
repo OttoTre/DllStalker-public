@@ -1,7 +1,5 @@
 #pragma once
 
-#include "pch.h"
-
 #include <cstdint>
 
 #include "engine/unity_module.h"

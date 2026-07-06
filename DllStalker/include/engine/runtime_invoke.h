@@ -1,7 +1,5 @@
 #pragma once
 
-#include "pch.h"
-
 #include "engine/unity_module.h"
 
 // Thin wrapper around the engine's `runtime_invoke` export with an SEH

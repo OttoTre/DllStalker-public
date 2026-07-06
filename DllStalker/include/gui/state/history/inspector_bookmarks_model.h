@@ -1,6 +1,8 @@
 #pragma once
 
-#include "pch.h"
+#include "build_config.h"
+
+#ifdef ENABLE_DUMPER
 
 #include <cstdint>
 #include <string>
@@ -46,3 +48,5 @@ struct InspectorBookmarksModel {
     size_t Size() const { return bookmarks.size(); }
 };
 } // namespace Gui::State
+
+#endif // ENABLE_DUMPER

@@ -1,6 +1,8 @@
 #pragma once
 
-#include "pch.h"
+#include "build_config.h"
+
+#ifdef ENABLE_DUMPER
 
 #include <string>
 
@@ -15,3 +17,5 @@ bool MethodMatches(const Engine::MethodInfo& method, const std::string& lowerFil
 bool FieldMatches(const Engine::FieldInfo& field, const std::string& lowerFilter);
 
 } // namespace Gui::Infra::SearchFilter
+
+#endif // ENABLE_DUMPER

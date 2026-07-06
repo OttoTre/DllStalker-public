@@ -1,7 +1,10 @@
 #pragma once
 
-#include "pch.h"
+#include "build_config.h"
 
+#ifdef ENABLE_DUMPER
+
+#include <cstddef>
 #include <functional>
 #include <string>
 
@@ -34,3 +37,5 @@ void RenderEnumFieldEditCell(const Engine::FieldInfo& field,
                              float& editStatusAtSeconds,
                              const std::function<void(bool)>& doRefresh);
 } // namespace Gui::Views
+
+#endif // ENABLE_DUMPER

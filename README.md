@@ -81,7 +81,7 @@ If package restore fails, confirm vcpkg is on PATH or integrated in VS, then reb
 
 ### Configuration vs. features
 
-`ENABLE_DUMPER` in `include/pch.h` is defined when `_DEBUG` or `DEBUGRELEASE`. It gates the GUI, dumper and related `types/` code.
+`ENABLE_DUMPER` in `include/build_config.h` (included by `pch.h`) is defined when `_DEBUG` or `DEBUGRELEASE`. It gates the GUI, dumper and related `types/` code.
 
 | Config | Dumper GUI |
 | --- | --- |

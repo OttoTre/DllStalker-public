@@ -1,6 +1,8 @@
 #pragma once
 
-#include "pch.h"
+#include "build_config.h"
+
+#ifdef ENABLE_DUMPER
 
 namespace Gui
 {
@@ -15,3 +17,5 @@ void RenderFieldAnalysisToolbar(ControlPanelSessionState& state,
                                 bool inCollectionView,
                                 bool fieldsBusy);
 } // namespace Gui::Views
+
+#endif // ENABLE_DUMPER

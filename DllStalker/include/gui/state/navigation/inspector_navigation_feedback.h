@@ -1,6 +1,8 @@
 #pragma once
 
-#include "pch.h"
+#include "build_config.h"
+
+#ifdef ENABLE_DUMPER
 
 namespace Gui::State
 {
@@ -22,3 +24,5 @@ struct InspectorNavigationFeedback {
     bool IsStatusFresh(double nowSeconds, double maxAgeSeconds = 3.0) const;
 };
 } // namespace Gui::State
+
+#endif // ENABLE_DUMPER

@@ -1,6 +1,8 @@
 #pragma once
 
-#include "pch.h"
+#include "build_config.h"
+
+#ifdef ENABLE_DUMPER
 
 #include <cstdint>
 #include <memory>
@@ -146,3 +148,5 @@ struct ControlPanelSessionState {
     State::HistoryRestoreResult TryApplyBookmark(uint32_t bookmarkId);
 };
 } // namespace Gui
+
+#endif // ENABLE_DUMPER

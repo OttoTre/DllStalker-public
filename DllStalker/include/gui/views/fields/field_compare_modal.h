@@ -1,6 +1,8 @@
 #pragma once
 
-#include "pch.h"
+#include "build_config.h"
+
+#ifdef ENABLE_DUMPER
 
 namespace Gui
 {
@@ -14,3 +16,5 @@ void RequestOpenTwoInstanceCompareModal();
 void RenderTwoInstanceCompareModal(ControlPanelSessionState& state,
                                    const InspectorCache& inspectorSnapshot);
 } // namespace Gui::Views
+
+#endif // ENABLE_DUMPER

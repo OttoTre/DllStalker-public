@@ -1,6 +1,8 @@
 #pragma once
 
-#include "pch.h"
+#include "build_config.h"
+
+#ifdef ENABLE_DUMPER
 
 namespace Gui::Views
 {
@@ -11,3 +13,5 @@ struct CopyFeedbackState {
     float copiedFieldAtSeconds = -1000.0f;
 };
 } // namespace Gui::Views
+
+#endif // ENABLE_DUMPER

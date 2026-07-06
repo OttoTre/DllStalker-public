@@ -1,6 +1,8 @@
 #pragma once
 
-#include "pch.h"
+#include "build_config.h"
+
+#ifdef ENABLE_DUMPER
 
 #include <mutex>
 #include <vector>
@@ -22,3 +24,5 @@ struct ClassCacheModel
     void Replace(std::vector<Engine::ClassInfo> v);
 };
 } // namespace Gui::State
+
+#endif // ENABLE_DUMPER

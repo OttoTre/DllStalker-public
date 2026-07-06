@@ -1,6 +1,8 @@
 #pragma once
 
-#include "pch.h"
+#include "build_config.h"
+
+#ifdef ENABLE_DUMPER
 
 #include <cstdint>
 #include <unordered_map>
@@ -23,3 +25,5 @@ struct EnumLiteralCache {
     }
 };
 } // namespace Gui::State
+
+#endif // ENABLE_DUMPER

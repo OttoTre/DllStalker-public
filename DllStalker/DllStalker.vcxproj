@@ -293,6 +293,7 @@
     <ClInclude Include="include\scripting\handles\script_handle_registry.h" />
     <ClInclude Include="include\scripting\abi\script_abi.h" />
     <ClInclude Include="include\presets\hook_preset.h" />
+    <ClInclude Include="include\build_config.h" />
     <ClInclude Include="include\pch.h" />
     <ClInclude Include="include\unity_resolver.h">
       <DeploymentContent>true</DeploymentContent>

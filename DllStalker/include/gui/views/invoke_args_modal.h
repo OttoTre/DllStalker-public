@@ -1,6 +1,8 @@
 #pragma once
 
-#include "pch.h"
+#include "build_config.h"
+
+#ifdef ENABLE_DUMPER
 
 namespace Gui
 {
@@ -12,3 +14,5 @@ namespace Gui::Views
 {
 void RenderInvokeArgsPopup(ControlPanelSessionState& state, const InspectorCache& inspectorSnapshot);
 } // namespace Gui::Views
+
+#endif // ENABLE_DUMPER

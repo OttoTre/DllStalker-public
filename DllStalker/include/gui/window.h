@@ -1,6 +1,8 @@
 #pragma once
 
-#include "pch.h"
+#include "build_config.h"
+
+#ifdef ENABLE_DUMPER
 
 #include <windows.h>
 
@@ -17,3 +19,5 @@ bool Create(ControlPanelWindow& window, const wchar_t* className, const wchar_t*
 void Show(const ControlPanelWindow& window);
 void Destroy(ControlPanelWindow& window);
 } // namespace Gui::Window
+
+#endif // ENABLE_DUMPER

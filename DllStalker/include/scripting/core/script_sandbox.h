@@ -1,5 +1,7 @@
 #pragma once
 
+#include "build_config.h"
+
 #ifdef ENABLE_DUMPER
 
 #include <cstddef>

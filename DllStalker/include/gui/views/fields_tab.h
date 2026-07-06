@@ -1,6 +1,8 @@
 #pragma once
 
-#include "pch.h"
+#include "build_config.h"
+
+#ifdef ENABLE_DUMPER
 
 #include "gui/views/copy_feedback_state.h"
 
@@ -17,3 +19,5 @@ void RenderFieldsTab(const InspectorCache& inspectorSnapshot,
                      bool inspectorLoadInProgress,
                      ControlPanelSessionState& state);
 } // namespace Gui::Views
+
+#endif // ENABLE_DUMPER

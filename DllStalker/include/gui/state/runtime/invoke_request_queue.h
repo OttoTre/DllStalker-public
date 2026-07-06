@@ -1,6 +1,8 @@
 #pragma once
 
-#include "pch.h"
+#include "build_config.h"
+
+#ifdef ENABLE_DUMPER
 
 #include <array>
 #include <atomic>
@@ -39,3 +41,5 @@ struct InvokeRequestQueue
     float                  latestAtSeconds = -1000.0f;
 };
 } // namespace Gui::State
+
+#endif // ENABLE_DUMPER

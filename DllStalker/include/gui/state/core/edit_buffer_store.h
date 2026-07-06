@@ -1,6 +1,8 @@
 #pragma once
 
-#include "pch.h"
+#include "build_config.h"
+
+#ifdef ENABLE_DUMPER
 
 #include <array>
 #include <cstdint>
@@ -19,3 +21,5 @@ struct EditBufferStore
     void Clear() { buffers.clear(); }
 };
 } // namespace Gui::State
+
+#endif // ENABLE_DUMPER

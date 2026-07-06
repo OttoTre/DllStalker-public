@@ -1,11 +1,10 @@
 #pragma once
 
-#include "pch.h"
+#include "build_config.h"
 
 #ifdef ENABLE_DUMPER
 
 #include <functional>
-
 #include <windows.h>
 
 namespace Engine::Services

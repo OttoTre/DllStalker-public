@@ -1,6 +1,8 @@
 #pragma once
 
-#include "pch.h"
+#include "build_config.h"
+
+#ifdef ENABLE_DUMPER
 
 #include <windows.h>
 #include <d3d11.h>
@@ -23,3 +25,5 @@ bool IsReady(HWND hwnd, const D3D11Context& context);
 void Resize(D3D11Context& context, UINT width, UINT height);
 void RenderFrame(D3D11Context& context);
 } // namespace Gui::Infra::Dx11
+
+#endif // ENABLE_DUMPER

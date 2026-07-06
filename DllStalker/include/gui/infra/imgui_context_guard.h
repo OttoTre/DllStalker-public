@@ -1,6 +1,8 @@
 #pragma once
 
-#include "pch.h"
+#include "build_config.h"
+
+#ifdef ENABLE_DUMPER
 
 #include "imgui.h"
 
@@ -59,3 +61,5 @@ public:
 };
 
 } // namespace Gui::Infra
+
+#endif // ENABLE_DUMPER

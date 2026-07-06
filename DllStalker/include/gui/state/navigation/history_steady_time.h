@@ -1,6 +1,8 @@
 #pragma once
 
-#include "pch.h"
+#include "build_config.h"
+
+#ifdef ENABLE_DUMPER
 
 #include <chrono>
 
@@ -20,3 +22,5 @@ inline double HistorySteadyNowSeconds() {
     return std::chrono::duration<double>(Clock::now().time_since_epoch()).count();
 }
 } // namespace Gui::State
+
+#endif // ENABLE_DUMPER

@@ -1,6 +1,8 @@
 #pragma once
 
-#include "pch.h"
+#include "build_config.h"
+
+#ifdef ENABLE_DUMPER
 
 #include <string>
 #include <vector>
@@ -44,3 +46,5 @@ struct WalkerController
     size_t Size() const { return stack.size(); }
 };
 } // namespace Gui::State
+
+#endif // ENABLE_DUMPER

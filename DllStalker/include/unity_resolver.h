@@ -1,7 +1,5 @@
 #pragma once
 
-#include "pch.h"
-
 #include "engine/image_enumerator.h"
 #include "engine/reflection.h"
 #include "engine/runtime_invoke.h"

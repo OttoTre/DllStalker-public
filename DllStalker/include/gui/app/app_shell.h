@@ -1,6 +1,8 @@
 #pragma once
 
-#include "pch.h"
+#include "build_config.h"
+
+#ifdef ENABLE_DUMPER
 
 #include <windows.h>
 
@@ -19,3 +21,5 @@ void RenderControlPanelContent(ControlPanelSessionState& state);
 void RenderMainLayout(ControlPanelSessionState& state, Views::CopyFeedbackState& copyFeedback);
 void RenderDumperInitialization(ControlPanelSessionState& state);
 } // namespace Gui::AppShell
+
+#endif // ENABLE_DUMPER

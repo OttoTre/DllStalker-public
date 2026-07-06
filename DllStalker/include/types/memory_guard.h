@@ -3,7 +3,7 @@
 #include <cstddef>
 #include <cstdint>
 
-#include <Windows.h>
+#include <windows.h>
 
 // Process-memory readability/writability primitives plus typed read/write
 // helpers built on top. Every dumper / GUI / walker / preset path that

@@ -1,6 +1,8 @@
 #pragma once
 
-#include "pch.h"
+#include "build_config.h"
+
+#ifdef ENABLE_DUMPER
 
 #include <atomic>
 #include <thread>
@@ -30,3 +32,5 @@ struct AsyncLoaderSet
     std::jthread instanceSearchThread{};
 };
 } // namespace Gui::State
+
+#endif // ENABLE_DUMPER

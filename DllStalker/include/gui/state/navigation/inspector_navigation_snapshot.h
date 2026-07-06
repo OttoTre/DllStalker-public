@@ -1,6 +1,8 @@
 #pragma once
 
-#include "pch.h"
+#include "build_config.h"
+
+#ifdef ENABLE_DUMPER
 
 #include <string>
 #include <vector>
@@ -76,3 +78,5 @@ enum class BreadcrumbValidationResult {
     StaleBreadcrumb,
 };
 } // namespace Gui::State
+
+#endif // ENABLE_DUMPER
