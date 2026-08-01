@@ -31,7 +31,6 @@ InstallResult Install(CallLogHookSpec& inOutSpec);
 
 bool Uninstall(uint32_t hookId);
 
-bool UninstallByTarget(uintptr_t target);
 } // namespace Engine::Services::CallLogHooks
 
 #endif // ENABLE_DUMPER

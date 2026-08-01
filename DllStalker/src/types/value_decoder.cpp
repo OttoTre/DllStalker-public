@@ -13,6 +13,7 @@
 
 #include "types/memory_guard.h"
 #include "types/type_classifier.h"
+#include "types/unity_array_layout.h"
 
 namespace Engine::Decode
 {
@@ -265,16 +266,15 @@ std::string DecodeFieldValue(const std::string& fieldType, uintptr_t valueAddres
     }
     case Cat::ARRAY: {
         // Shape preview: "T[N]" — the GUI uses this string both to label the
-        // collection row and as the click target. Length lives at offset
-        // 0x18 in the Il2CppArray / MonoArray header on x64; if the pointer
-        // is null or the header isn't readable we fall through to "null" /
-        // "??" so the renderer skips making the row clickable.
+        // collection row and as the click target. Length lives at
+        // UnityArrayLayout::LengthOffset; if the pointer is null or the
+        // header isn't readable we fall through to "null" / "??" so the
+        // renderer skips making the row clickable.
         uintptr_t arrayPtr = 0;
         if (!Memory::TryReadValue(valueAddress, arrayPtr)) return "??";
         if (arrayPtr == 0) return "null";
-        constexpr uintptr_t kArrayLengthOffset = 0x18;
         size_t length = 0;
-        if (!Memory::TryReadValue(arrayPtr + kArrayLengthOffset, length)) return "??";
+        if (!Memory::TryReadValue(arrayPtr + UnityArrayLayout::LengthOffset, length)) return "??";
         // Generous sanity ceiling: anything past ~100M elements is patently
         // a garbage read (would be 800MB+ of pointers) and we'd rather show
         // "??" than a 20-digit fantasy length. The dumper has its own,

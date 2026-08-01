@@ -1,30 +1,22 @@
 # Script Package Examples
 
-Copyable tutorial packages for `stalker_runtime/mods` beside the injected `version.dll`.
+Starter manifests and modder references for packages under `stalker_runtime/mods` beside the injected `version.dll`.
 
 ## Reference
 
 | File | Purpose |
 |------|---------|
-| [`Scripting-Guide.md`](Scripting-Guide.md) | Lua API reference, profiles, handles, Curated ABI |
+| [`Scripting-Guide.md`](Scripting-Guide.md) | Lua API reference, profiles, handles, Curated ABI, inline examples |
 | [`Manifest-Schema.md`](Manifest-Schema.md) | Parsed manifest fields, defaults, and parser limits |
 | [`manifest.template.json`](manifest.template.json) | Safe-profile starter manifest |
 | [`manifest.curated.template.json`](manifest.curated.template.json) | Curated-profile starter manifest |
 
-## Tutorial Packages
+## Getting Started
 
-1. Copy one folder from [`packages/`](packages/) into `stalker_runtime/mods`.
-2. Edit the constants at the top of `main.lua` (`IMAGE`, `CLASS`, `FIELD`, and so on).
-3. In the Scripting dock: **Refresh** → select package → **Start**.
-
-| Package | Profile | Teaches |
-|---------|---------|---------|
-| [`metadata-lookup`](packages/metadata-lookup/) | Safe | Images, classes, fields, methods; `address_hex()` for logs |
-| [`heal-below-threshold`](packages/heal-below-threshold/) | Safe | `find_object`, `get`, conditional `set` |
-| [`list-instances`](packages/list-instances/) | Safe | `find_objects` and bounded logging |
-| [`invoke-method`](packages/invoke-method/) | Safe | `invoke` with an explicit signature string |
-| [`field-watcher`](packages/field-watcher/) | Safe | `ds.on_tick` / `ds.on_unload` polling |
-| [`curated-offset-read`](packages/curated-offset-read/) | Curated | `ds.types.Instance` offset read (optional write) |
+1. Create a folder under `stalker_runtime/mods` (or drop a loose `.lua` file there for a Safe one-shot).
+2. Copy [`manifest.template.json`](manifest.template.json) or [`manifest.curated.template.json`](manifest.curated.template.json) as `manifest.json` when you need a display name, Curated profile, custom `entry_file`, or non-default timing budgets. Omit the manifest for a basic Safe folder that uses `main.lua`.
+3. Write `main.lua` using the API and snippets in [`Scripting-Guide.md`](Scripting-Guide.md). Edit game-specific constants (`IMAGE`, `CLASS`, `FIELD`, and so on) for the target title.
+4. In the Scripting dock: **Refresh** → select package → **Start**.
 
 ## Manifest Quick Rules
 

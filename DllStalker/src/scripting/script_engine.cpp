@@ -7,67 +7,15 @@
 #include <string>
 
 #include "scripting/script_engine.h"
+#include "scripting/core/script_path_util.h"
 #include "scripting/core/script_sandbox.h"
 #include "services/main_thread_dispatcher.h"
+#include "services/module_path.h"
 
 namespace Scripting
 {
 namespace
 {
-HMODULE GetSelfModuleHandle() noexcept {
-    HMODULE module = nullptr;
-    GetModuleHandleExW(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
-                       reinterpret_cast<LPCWSTR>(&GetSelfModuleHandle),
-                       &module);
-    return module;
-}
-
-std::wstring GetProxyDllDirectory() {
-    const HMODULE module = GetSelfModuleHandle();
-    if (module == nullptr) {
-        return L".";
-    }
-
-    wchar_t path[MAX_PATH]{};
-    const DWORD length = GetModuleFileNameW(module, path, MAX_PATH);
-    if (length == 0 || length >= MAX_PATH) {
-        return L".";
-    }
-
-    std::wstring directory(path, length);
-    const size_t slash = directory.find_last_of(L"\\/");
-    if (slash != std::wstring::npos) {
-        directory.resize(slash);
-    }
-    return directory;
-}
-
-std::filesystem::path ToPath(const std::wstring& text) {
-    return std::filesystem::path(text);
-}
-
-bool IsPathInsideRoot(const std::filesystem::path& root, const std::filesystem::path& candidate) {
-    std::error_code errorCode;
-    const auto rootCanonical = std::filesystem::weakly_canonical(root, errorCode);
-    if (errorCode) {
-        return false;
-    }
-    const auto candidateCanonical = std::filesystem::weakly_canonical(candidate, errorCode);
-    if (errorCode) {
-        return false;
-    }
-
-    auto rootString = rootCanonical.wstring();
-    auto candidateString = candidateCanonical.wstring();
-    if (!rootString.empty() && rootString.back() != L'\\' && rootString.back() != L'/') {
-        rootString.push_back(L'\\');
-    }
-    if (candidateString.size() < rootString.size()) {
-        return false;
-    }
-    return _wcsnicmp(candidateString.c_str(), rootString.c_str(), rootString.size()) == 0;
-}
-
 struct ResolvedScriptPaths {
     std::wstring entryFilePath;
     std::wstring packageRoot;
@@ -80,7 +28,8 @@ ResolvedScriptPaths ResolveScriptPaths(const std::wstring& relativeScriptPath) {
         return resolved;
     }
 
-    const std::filesystem::path modsRoot = ToPath(GetProxyDllDirectory()) / L"stalker_runtime" / L"mods";
+    const std::filesystem::path modsRoot =
+        ToPath(Engine::Services::GetProxyDllDirectory()) / L"stalker_runtime" / L"mods";
     const std::filesystem::path candidate = modsRoot / ToPath(relativeScriptPath);
     if (!IsPathInsideRoot(modsRoot, candidate)) {
         return resolved;

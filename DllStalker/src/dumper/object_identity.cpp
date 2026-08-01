@@ -74,13 +74,6 @@ bool ObjectIdentity::IsOrInheritsFrom(void* klass, const char* targetName) const
     }
     return false;
 }
-
-int ObjectIdentity::GetObjectSize(void* instance) const {
-    if (!instance) return 0;
-    void* klass = KlassFromInstance(instance);
-    return (klass && m_resolver.module.exports.fnGetSize)
-        ? m_resolver.module.exports.fnGetSize(klass) : 256;
-}
 } // namespace Engine::Dumper
 
 #endif // ENABLE_DUMPER

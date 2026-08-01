@@ -4,9 +4,12 @@
 
 #include "gui/views/dispatch_status.h"
 
+#include "gui/chrome/ui_theme.h"
 #include "services/main_thread_dispatcher.h"
 
 #include "imgui.h"
+
+#include <cstdio>
 
 namespace Gui::Views
 {
@@ -15,13 +18,15 @@ void RenderDispatchStatus(const char* featureLabel) {
     const bool mainThreadCaptured = Engine::Services::MainThreadDispatcher::IsMainThreadCaptured();
 
     if (!dispatchAvailable) {
-        ImGui::TextColored(ImVec4(0.95f, 0.35f, 0.35f, 1.0f),
-                           "%s disabled (runtime_invoke hook unavailable)",
-                           featureLabel);
+        char msg[192] = {};
+        std::snprintf(msg, sizeof(msg),
+                      "%s disabled (runtime_invoke hook unavailable)",
+                      featureLabel);
+        UiTheme::DrawErrorText(msg);
     }
     else if (!mainThreadCaptured) {
-        ImGui::TextColored(ImVec4(0.95f, 0.85f, 0.25f, 1.0f),
-                           "Waiting for engine to make a managed call (main thread not yet captured)...");
+        UiTheme::DrawWarningText(
+            "Waiting for engine to make a managed call (main thread not yet captured)...");
     }
     else {
         ImGui::TextDisabled("%s main thread = 0x%lX",
@@ -32,9 +37,11 @@ void RenderDispatchStatus(const char* featureLabel) {
 
     const uint32_t dropped = Engine::Services::MainThreadDispatcher::GetDroppedJobCount();
     if (dropped > 0) {
-        ImGui::TextColored(ImVec4(0.95f, 0.65f, 0.25f, 1.0f),
-                           "Dispatcher dropped %u queued job(s) (queue full)",
-                           dropped);
+        char msg[128] = {};
+        std::snprintf(msg, sizeof(msg),
+                      "Dispatcher dropped %u queued job(s) (queue full)",
+                      dropped);
+        UiTheme::DrawWarningText(msg);
     }
 }
 } // namespace Gui::Views

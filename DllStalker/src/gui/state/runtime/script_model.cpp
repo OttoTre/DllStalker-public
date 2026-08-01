@@ -4,6 +4,8 @@
 
 #include "gui/state/runtime/script_model.h"
 
+#include "services/module_path.h"
+
 #include <algorithm>
 #include <cctype>
 #include <exception>
@@ -27,29 +29,6 @@ struct ManifestData {
     uint32_t softTimeoutMs = 2000;
     uint32_t hardQuarantineMs = 5000;
 };
-
-std::wstring GetSelfDllDirectory() {
-    HMODULE module = nullptr;
-    if (!GetModuleHandleExW(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
-                            reinterpret_cast<LPCWSTR>(&GetSelfDllDirectory),
-                            &module)
-        || module == nullptr) {
-        return L".";
-    }
-
-    wchar_t path[MAX_PATH]{};
-    const DWORD length = GetModuleFileNameW(module, path, MAX_PATH);
-    if (length == 0 || length >= MAX_PATH) {
-        return L".";
-    }
-
-    std::wstring directory(path, length);
-    const size_t slash = directory.find_last_of(L"\\/");
-    if (slash != std::wstring::npos) {
-        directory.resize(slash);
-    }
-    return directory;
-}
 
 std::string WideToUtf8(const std::wstring& wide) {
     if (wide.empty()) {
@@ -404,7 +383,7 @@ void ScriptModel::Append(std::string_view line) {
 }
 
 void ScriptModel::RefreshPackages() {
-    const std::filesystem::path modsRoot = std::filesystem::path(GetSelfDllDirectory())
+    const std::filesystem::path modsRoot = std::filesystem::path(Engine::Services::GetProxyDllDirectory())
         / L"stalker_runtime" / L"mods";
     const std::string modsRootUtf8 = PathToUtf8(modsRoot);
 

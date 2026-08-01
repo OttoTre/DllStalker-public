@@ -29,16 +29,16 @@ public:
     // Run once at construction
     bool InitDumperExports();
 
-    // Returns the System.Type wrapper for `klass` so it can be passed to
-    // FindObjectsOfType. Null on failure.
-    void* GetSystemTypeForClass(void* klass);
-
     // Live snapshot of every loaded instance of `klass`. Empty on any
     // engine-side error (the caller treats that as "not found").
     std::vector<void*> GetLiveInstances(void* klass);
 
 private:
     enum class LiveFindMode { Type1, Type2, ByType3 };
+
+    // Returns the System.Type wrapper for `klass` so it can be passed to
+    // FindObjectsOfType. Null on failure.
+    void* GetSystemTypeForClass(void* klass);
 
     UnityResolver& m_resolver;
 

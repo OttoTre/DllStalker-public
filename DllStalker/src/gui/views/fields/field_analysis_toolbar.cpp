@@ -4,9 +4,9 @@
 
 #include "gui/views/fields/field_analysis_toolbar.h"
 
+#include "gui/chrome/ui_theme.h"
 #include "gui/session_state.h"
 #include "gui/state/fields/field_snapshot_model.h"
-#include "gui/views/fields/field_compare_modal.h"
 
 #include "imgui.h"
 
@@ -14,18 +14,19 @@ namespace Gui::Views
 {
 void RenderFieldAnalysisToolbar(ControlPanelSessionState& state,
                                 const InspectorCache& inspectorSnapshot,
-                                bool inCollectionView,
+                                bool /*inCollectionView*/,
                                 bool fieldsBusy) {
     const State::FieldAnalysisScope scope = State::BuildFieldAnalysisScope(state);
     state.fieldSnapshot.InvalidateIfScopeChanged(scope);
 
     const bool canSnapshot =
         !fieldsBusy && !inspectorSnapshot.fields.empty() && state.selectedClass != nullptr;
+    const bool hasBaseline = state.fieldSnapshot.HasBaseline();
 
     if (!canSnapshot) {
         ImGui::BeginDisabled();
     }
-    if (ImGui::Button("Snapshot state", ImVec2(130, 0))) {
+    if (UiTheme::IconSnapshotButton("##snapshot", "Snapshot field state", -1.0f, canSnapshot)) {
         state.fieldSnapshot.CaptureBaseline(inspectorSnapshot.fields, scope);
     }
     if (!canSnapshot) {
@@ -36,22 +37,22 @@ void RenderFieldAnalysisToolbar(ControlPanelSessionState& state,
     }
 
     ImGui::SameLine();
-    if (!state.fieldSnapshot.HasBaseline()) {
+    if (!hasBaseline) {
         ImGui::BeginDisabled();
     }
-    if (ImGui::Button("Clear snapshot", ImVec2(120, 0))) {
+    if (UiTheme::IconTrashButton("##clear_snapshot", "Clear snapshot", -1.0f, hasBaseline)) {
         state.fieldSnapshot.ClearBaseline();
     }
-    if (!state.fieldSnapshot.HasBaseline()) {
+    if (!hasBaseline) {
         ImGui::EndDisabled();
     }
 
     ImGui::SameLine();
-    if (!state.fieldSnapshot.HasBaseline()) {
+    if (!hasBaseline) {
         ImGui::BeginDisabled();
     }
-    ImGui::Checkbox("Show changes", &state.fieldSnapshot.showChanges);
-    if (!state.fieldSnapshot.HasBaseline()) {
+    UiTheme::ChipToggle("Show changes", &state.fieldSnapshot.showChanges);
+    if (!hasBaseline) {
         ImGui::EndDisabled();
         if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled)) {
             ImGui::SetTooltip("Take a snapshot first.");
@@ -59,36 +60,7 @@ void RenderFieldAnalysisToolbar(ControlPanelSessionState& state,
     }
 
     ImGui::SameLine();
-    const size_t rootCandidateCount = state.inspector.rootInstanceCandidates.size();
-    const bool canCompareTwo =
-        rootCandidateCount >= 2 && state.selectedClass != nullptr;
-    if (!canCompareTwo) {
-        ImGui::BeginDisabled();
-    }
-    if (ImGui::Button("Compare two instances...", ImVec2(200, 0))) {
-        RequestOpenTwoInstanceCompareModal();
-    }
-    if (!canCompareTwo) {
-        ImGui::EndDisabled();
-        if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled)) {
-            ImGui::SetTooltip(
-                "At class root, use Find Instances to discover at least two candidates.");
-        }
-    }
-    else if (ImGui::IsItemHovered()) {
-        if (inCollectionView) {
-            ImGui::SetTooltip(
-                "Opens compare modal. Use Current path with an element index for A vs B here; "
-                "class-field table is disabled in collection view.");
-        }
-        else if (state.walker.stack.size() > 1) {
-            ImGui::SetTooltip(
-                "Class fields = sidebar class layout. Current path = value at your drill path.");
-        }
-    }
-
-    ImGui::SameLine();
-    if (state.fieldSnapshot.HasBaseline()) {
+    if (hasBaseline) {
         if (!state.fieldSnapshot.snapshotTimeLabel.empty()) {
             ImGui::TextDisabled("Snapshot: %zu fields @ %s",
                                 state.fieldSnapshot.snapshotFieldCount,
@@ -98,12 +70,9 @@ void RenderFieldAnalysisToolbar(ControlPanelSessionState& state,
             ImGui::TextDisabled("Snapshot: %zu fields",
                                 state.fieldSnapshot.snapshotFieldCount);
         }
-        if (state.fieldSnapshot.showChanges) {
+        if (state.fieldSnapshot.showChanges && !fieldsBusy) {
             ImGui::SameLine();
             ImGui::TextDisabled("| %zu changed", state.fieldSnapshot.lastChangedCount);
-            if (ImGui::IsItemHovered()) {
-                ImGui::SetTooltip("Counts all changed fields; filter may hide some rows.");
-            }
         }
     }
     else {

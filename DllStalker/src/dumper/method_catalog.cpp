@@ -78,7 +78,9 @@ MethodParam MakeMethodParam(const UnityModule& module, void* paramType) {
     const auto& exp = module.exports;
     if (paramType && exp.fnTypeGetName) {
         if (const char* typeName = exp.fnTypeGetName(paramType)) {
-            param.typeName = typeName;
+            if (typeName[0] != '\0') {
+                param.typeName = typeName;
+            }
         }
     }
     if (param.typeName.empty()) {
@@ -86,6 +88,39 @@ MethodParam MakeMethodParam(const UnityModule& module, void* paramType) {
     }
     EnrichParamEnumMetadata(module, paramType, param);
     return param;
+}
+
+std::string ResolveReturnTypeName(const UnityModule& module, void* method, void* monoSig) {
+    const auto& exp = module.exports;
+    if (!exp.fnTypeGetName) {
+        return "Unknown";
+    }
+
+    void* returnType = nullptr;
+    if (module.isIL2CPP) {
+        if (exp.fnIl2cppMethodGetReturnType) {
+            returnType = exp.fnIl2cppMethodGetReturnType(method);
+        }
+    }
+    else if (exp.fnMonoSignatureGetReturnType) {
+        void* sig = monoSig;
+        if (!sig && exp.fnMonoMethodSignature) {
+            sig = exp.fnMonoMethodSignature(method);
+        }
+        if (sig) {
+            returnType = exp.fnMonoSignatureGetReturnType(sig);
+        }
+    }
+
+    if (!returnType) {
+        return "Unknown";
+    }
+    if (const char* typeName = exp.fnTypeGetName(returnType)) {
+        if (typeName[0] != '\0') {
+            return typeName;
+        }
+    }
+    return "Unknown";
 }
 } // namespace
 
@@ -131,6 +166,7 @@ std::vector<MethodInfo> MethodCatalog::GetRawMethods(void* klass) {
 
         MethodInfo info{};
         info.engineHandle = method;
+        void* monoSigForReturn = nullptr;
 
         if (m_resolver.module.isIL2CPP) {
             if (!Memory::TryReadValue(reinterpret_cast<uintptr_t>(method), addr)) {
@@ -169,6 +205,7 @@ std::vector<MethodInfo> MethodCatalog::GetRawMethods(void* klass) {
                 params = "jit";
                 if (m_resolver.module.exports.fnMonoMethodSignature && m_resolver.module.exports.fnMonoSignatureGetParamCount) {
                     if (void* sig = m_resolver.module.exports.fnMonoMethodSignature(method)) {
+                        monoSigForReturn = sig;
                         const uint32_t count = m_resolver.module.exports.fnMonoSignatureGetParamCount(sig);
                         params = std::to_string(count) + " args (jit)";
                         info.paramsKnown = true;
@@ -193,7 +230,7 @@ std::vector<MethodInfo> MethodCatalog::GetRawMethods(void* klass) {
         }
 
         info.name       = name ? name : "UNKNOWN_METHOD";
-        info.returnType = "Unknown";
+        info.returnType = ResolveReturnTypeName(m_resolver.module, method, monoSigForReturn);
         info.parameters = std::move(params);
         info.address    = addr;
         methods.push_back(std::move(info));

@@ -260,16 +260,6 @@ bool Uninstall(uint32_t hookId) {
     }
     return UninstallSlotLocked(slotIndex);
 }
-
-bool UninstallByTarget(uintptr_t target) {
-    std::lock_guard<std::mutex> lock(g_installMutex);
-    for (int i = 0; i < static_cast<int>(kMaxSlots); ++i) {
-        if (g_slots[i].active.load(std::memory_order_acquire) && g_slots[i].target == target) {
-            return UninstallSlotLocked(i);
-        }
-    }
-    return false;
-}
 } // namespace Engine::Services::CallLogHooks
 
 #endif // ENABLE_DUMPER

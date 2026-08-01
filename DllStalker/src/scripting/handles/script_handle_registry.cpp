@@ -18,7 +18,6 @@ ScriptHandle ScriptHandleRegistry::Register(const RegisterHandleRequest& request
     entry.kind = request.kind;
     entry.runtimeKind = request.runtimeKind;
     entry.expectedClassIdentity = request.expectedClassIdentity;
-    entry.unityInstanceId = request.unityInstanceId;
     entry.ownerScriptId = request.ownerScriptId;
     entry.isAlive = request.kind != ScriptHandleKind::Invalid && request.nativeAddress != 0;
     entries_.push_back(entry);
@@ -113,7 +112,6 @@ ResolvedHandle ScriptHandleRegistry::ResolveAndValidate(ScriptHandle handle,
     result.kind = entry.kind;
     result.runtimeKind = entry.runtimeKind;
     result.expectedClassIdentity = entry.expectedClassIdentity;
-    result.unityInstanceId = entry.unityInstanceId;
     return result;
 }
 } // namespace Scripting

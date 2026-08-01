@@ -4,6 +4,7 @@
 
 #include "gui/views/dock/scripting_tab.h"
 
+#include "gui/chrome/ui_theme.h"
 #include "gui/session_state.h"
 #include "gui/state/runtime/script_model.h"
 
@@ -43,9 +44,6 @@ const char* StopReasonToText(Scripting::ScriptStopReason reason) {
     default: return "Unknown";
     }
 }
-
-constexpr ImVec4 kWarningColor{ 0.95f, 0.85f, 0.25f, 1.0f };
-constexpr ImVec4 kErrorColor{ 0.95f, 0.35f, 0.35f, 1.0f };
 
 bool IsFailedRunState(Scripting::ScriptRunState state) {
     return state == Scripting::ScriptRunState::Failed
@@ -138,21 +136,21 @@ float EstimateTopStatusHeight(const Gui::State::ScriptModelSnapshot& snapshot,
 void TextWarning(const char* format, ...) {
     va_list args;
     va_start(args, format);
-    ImGui::TextColoredV(kWarningColor, format, args);
+    ImGui::TextColoredV(UiTheme::Tokens().warning, format, args);
     va_end(args);
 }
 
 void TextError(const char* format, ...) {
     va_list args;
     va_start(args, format);
-    ImGui::TextColoredV(kErrorColor, format, args);
+    ImGui::TextColoredV(UiTheme::Tokens().error, format, args);
     va_end(args);
 }
 
 void TextWrappedWarning(const char* format, ...) {
     va_list args;
     va_start(args, format);
-    ImGui::PushStyleColor(ImGuiCol_Text, kWarningColor);
+    ImGui::PushStyleColor(ImGuiCol_Text, UiTheme::Tokens().warning);
     ImGui::TextWrappedV(format, args);
     ImGui::PopStyleColor();
     va_end(args);
@@ -161,7 +159,7 @@ void TextWrappedWarning(const char* format, ...) {
 void TextWrappedError(const char* format, ...) {
     va_list args;
     va_start(args, format);
-    ImGui::PushStyleColor(ImGuiCol_Text, kErrorColor);
+    ImGui::PushStyleColor(ImGuiCol_Text, UiTheme::Tokens().error);
     ImGui::TextWrappedV(format, args);
     ImGui::PopStyleColor();
     va_end(args);
@@ -215,7 +213,8 @@ void RenderModsRootPath(const Gui::State::ScriptModelSnapshot& snapshot) {
 
 void RenderPackageList(ControlPanelSessionState& state,
                        const Gui::State::ScriptModelSnapshot& snapshot) {
-    if (ImGui::Button("Refresh##scripting")) {
+    const float packageRefreshSize = ImGui::GetTextLineHeight();
+    if (UiTheme::IconRefreshButton("##refresh_packages", "Refresh packages", packageRefreshSize)) {
         state.scriptModel.RefreshPackages();
     }
 
@@ -267,32 +266,35 @@ void RenderActionToolbar(ControlPanelSessionState& state,
     const bool canReload = package != nullptr && package->valid &&
         (snapshot.runState == Scripting::ScriptRunState::Running || !active);
 
+    const float toolbarIcon = ImGui::GetFrameHeight() * 0.75f;
+
     ImGui::BeginDisabled(!canStart);
-    if (ImGui::Button("Start##scripting")) {
+    if (UiTheme::IconPlayButton("##start_script", "Start", toolbarIcon, canStart)) {
         state.scriptModel.StartSelected();
     }
     ImGui::EndDisabled();
 
-    ImGui::SameLine();
+    ImGui::SameLine(0.0f, 4.0f);
     ImGui::BeginDisabled(!active);
-    if (ImGui::Button("Stop##scripting")) {
+    if (UiTheme::IconStopButton("##stop_script", "Stop", toolbarIcon, active)) {
         state.scriptModel.StopActive();
     }
     ImGui::EndDisabled();
 
-    ImGui::SameLine();
+    ImGui::SameLine(0.0f, 4.0f);
     ImGui::BeginDisabled(!canReload);
-    if (ImGui::Button("Reload##scripting")) {
+    if (UiTheme::IconRefreshButton("##reload_script", "Reload", toolbarIcon)) {
         state.scriptModel.ReloadSelected();
     }
     ImGui::EndDisabled();
 
-    ImGui::SameLine();
-    if (ImGui::Button("Clear console##scripting")) {
+    ImGui::SameLine(0.0f, 4.0f);
+    if (UiTheme::IconTrashButton("##clear_console", "Clear console", toolbarIcon)) {
         state.scriptModel.ClearConsole();
     }
 
-    ImGui::SameLine();
+    ImGui::SameLine(0.0f, 8.0f);
+    ImGui::AlignTextToFramePadding();
     if (IsFailedRunState(snapshot.runState)) {
         TextError("State: %s", RunStateToText(snapshot.runState));
     } else if (IsWarningRunState(snapshot.runState)) {

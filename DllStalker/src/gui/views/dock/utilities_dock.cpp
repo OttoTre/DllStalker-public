@@ -4,6 +4,7 @@
 
 #include "gui/views/dock/utilities_dock.h"
 
+#include "gui/chrome/ui_theme.h"
 #include "gui/session_state.h"
 #include "gui/views/dock/bookmarks_tab.h"
 #include "gui/views/dock/history_tab.h"
@@ -17,7 +18,7 @@
 namespace Gui::Views
 {
 void RenderUtilitiesDock(ControlPanelSessionState& state) {
-    if (!ImGui::BeginTabBar("UtilitiesDock")) {
+    if (!UiTheme::BeginUnderlineTabBar("UtilitiesDock")) {
         return;
     }
 
@@ -51,7 +52,7 @@ void RenderUtilitiesDock(ControlPanelSessionState& state) {
         ImGui::EndTabItem();
     }
 
-    ImGui::EndTabBar();
+    UiTheme::EndUnderlineTabBar();
 }
 } // namespace Gui::Views
 

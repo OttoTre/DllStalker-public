@@ -81,6 +81,9 @@
     <Filter Include="Pliki nagłówkowe\gui\app">
       <UniqueIdentifier>{2B3C4D5E-6F70-8192-A3B4-C5D6E7F80902}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Pliki nagłówkowe\gui\chrome">
+      <UniqueIdentifier>{A1B2C3D4-E5F6-7081-92A3-B4C5D6E7F8A0}</UniqueIdentifier>
+    </Filter>
     <Filter Include="Pliki nagłówkowe\gui\infra">
       <UniqueIdentifier>{3C4D5E6F-7081-92A3-B4C5-D6E7F8090313}</UniqueIdentifier>
     </Filter>
@@ -95,6 +98,9 @@
     </Filter>
     <Filter Include="Pliki źródłowe\gui\app">
       <UniqueIdentifier>{708192A3-B4C5-D6E7-F809-1626374757}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Pliki źródłowe\gui\chrome">
+      <UniqueIdentifier>{B2C3D4E5-F607-8192-A3B4-C5D6E7F8A1B2}</UniqueIdentifier>
     </Filter>
     <Filter Include="Pliki źródłowe\gui\infra">
       <UniqueIdentifier>{8192A3B4-C5D6-E7F8-0916-2737485868}</UniqueIdentifier>
@@ -195,6 +201,12 @@
     <ClInclude Include="include\framework.h">
       <Filter>Pliki nagłówkowe</Filter>
     </ClInclude>
+    <ClInclude Include="include\services\bootstrap_log.h">
+      <Filter>Pliki nagłówkowe\services</Filter>
+    </ClInclude>
+    <ClInclude Include="include\services\module_path.h">
+      <Filter>Pliki nagłówkowe\services</Filter>
+    </ClInclude>
     <ClInclude Include="include\services\hook_installer.h">
       <Filter>Pliki nagłówkowe\services</Filter>
     </ClInclude>
@@ -204,10 +216,10 @@
     <ClInclude Include="include\services\call_log_hooks.h">
       <Filter>Pliki nagłówkowe\services</Filter>
     </ClInclude>
-    <ClInclude Include="include\pch.h">
+    <ClInclude Include="include\build_config.h">
       <Filter>Pliki nagłówkowe</Filter>
     </ClInclude>
-    <ClInclude Include="include\build_config.h">
+    <ClInclude Include="include\pch.h">
       <Filter>Pliki nagłówkowe</Filter>
     </ClInclude>
     <ClInclude Include="include\scripting\script_engine.h">
@@ -220,6 +232,9 @@
       <Filter>Pliki nagłówkowe\scripting\core</Filter>
     </ClInclude>
     <ClInclude Include="include\scripting\core\script_sandbox.h">
+      <Filter>Pliki nagłówkowe\scripting\core</Filter>
+    </ClInclude>
+    <ClInclude Include="include\scripting\core\script_path_util.h">
       <Filter>Pliki nagłówkowe\scripting\core</Filter>
     </ClInclude>
     <ClInclude Include="include\scripting\core\script_audit.h">
@@ -312,6 +327,12 @@
     <ClInclude Include="include\gui\control_panel.h">
       <Filter>Pliki nagłówkowe\gui</Filter>
     </ClInclude>
+    <ClInclude Include="include\gui\chrome\ui_icons.h">
+      <Filter>Pliki nagłówkowe\gui\chrome</Filter>
+    </ClInclude>
+    <ClInclude Include="include\gui\chrome\ui_theme.h">
+      <Filter>Pliki nagłówkowe\gui\chrome</Filter>
+    </ClInclude>
     <ClInclude Include="include\unity_dumper.h">
       <Filter>Pliki nagłówkowe</Filter>
     </ClInclude>
@@ -331,6 +352,9 @@
       <Filter>Pliki nagłówkowe\types</Filter>
     </ClInclude>
     <ClInclude Include="include\types\memory_guard.h">
+      <Filter>Pliki nagłówkowe\types</Filter>
+    </ClInclude>
+    <ClInclude Include="include\types\unity_array_layout.h">
       <Filter>Pliki nagłówkowe\types</Filter>
     </ClInclude>
     <ClInclude Include="include\types\type_classifier.h">
@@ -357,13 +381,13 @@
     <ClInclude Include="include\gui\app\app_shell.h">
       <Filter>Pliki nagłówkowe\gui\app</Filter>
     </ClInclude>
-    <ClInclude Include="include\gui\views\error_modals.h">
-      <Filter>Pliki nagłówkowe\gui\views</Filter>
-    </ClInclude>
     <ClInclude Include="include\gui\views\image_picker.h">
       <Filter>Pliki nagłówkowe\gui\views</Filter>
     </ClInclude>
     <ClInclude Include="include\gui\views\class_browser.h">
+      <Filter>Pliki nagłówkowe\gui\views</Filter>
+    </ClInclude>
+    <ClInclude Include="include\gui\views\class_label_lookup.h">
       <Filter>Pliki nagłówkowe\gui\views</Filter>
     </ClInclude>
     <ClInclude Include="include\gui\views\inspector_frame.h">
@@ -385,6 +409,9 @@
       <Filter>Pliki nagłówkowe\gui\views</Filter>
     </ClInclude>
     <ClInclude Include="include\gui\views\fields_tab.h">
+      <Filter>Pliki nagłówkowe\gui\views</Filter>
+    </ClInclude>
+    <ClInclude Include="include\gui\views\analysis_tab.h">
       <Filter>Pliki nagłówkowe\gui\views</Filter>
     </ClInclude>
     <ClInclude Include="include\gui\views\fields\field_analysis_toolbar.h">
@@ -506,6 +533,12 @@
     <ClCompile Include="src\pch.cpp">
       <Filter>Pliki źródłowe</Filter>
     </ClCompile>
+    <ClCompile Include="src\services\bootstrap_log.cpp">
+      <Filter>Pliki źródłowe\services</Filter>
+    </ClCompile>
+    <ClCompile Include="src\services\module_path.cpp">
+      <Filter>Pliki źródłowe\services</Filter>
+    </ClCompile>
     <ClCompile Include="src\services\hook_installer.cpp">
       <Filter>Pliki źródłowe\services</Filter>
     </ClCompile>
@@ -522,6 +555,9 @@
       <Filter>Pliki źródłowe\scripting\core</Filter>
     </ClCompile>
     <ClCompile Include="src\scripting\core\script_sandbox.cpp">
+      <Filter>Pliki źródłowe\scripting\core</Filter>
+    </ClCompile>
+    <ClCompile Include="src\scripting\core\script_path_util.cpp">
       <Filter>Pliki źródłowe\scripting\core</Filter>
     </ClCompile>
     <ClCompile Include="src\scripting\core\script_error_boundary.cpp">
@@ -617,6 +653,12 @@
     <ClCompile Include="src\gui\control_panel.cpp">
       <Filter>Pliki źródłowe\gui</Filter>
     </ClCompile>
+    <ClCompile Include="src\gui\chrome\ui_icons.cpp">
+      <Filter>Pliki źródłowe\gui\chrome</Filter>
+    </ClCompile>
+    <ClCompile Include="src\gui\chrome\ui_theme.cpp">
+      <Filter>Pliki źródłowe\gui\chrome</Filter>
+    </ClCompile>
     <ClCompile Include="src\presets\preset_registry.cpp">
       <Filter>Pliki źródłowe\presets</Filter>
     </ClCompile>
@@ -656,13 +698,13 @@
     <ClCompile Include="src\gui\app\app_shell.cpp">
       <Filter>Pliki źródłowe\gui\app</Filter>
     </ClCompile>
-    <ClCompile Include="src\gui\views\error_modals.cpp">
-      <Filter>Pliki źródłowe\gui\views</Filter>
-    </ClCompile>
     <ClCompile Include="src\gui\views\image_picker.cpp">
       <Filter>Pliki źródłowe\gui\views</Filter>
     </ClCompile>
     <ClCompile Include="src\gui\views\class_browser.cpp">
+      <Filter>Pliki źródłowe\gui\views</Filter>
+    </ClCompile>
+    <ClCompile Include="src\gui\views\class_label_lookup.cpp">
       <Filter>Pliki źródłowe\gui\views</Filter>
     </ClCompile>
     <ClCompile Include="src\gui\views\inspector_frame.cpp">
@@ -681,6 +723,9 @@
       <Filter>Pliki źródłowe\gui\views</Filter>
     </ClCompile>
     <ClCompile Include="src\gui\views\fields_tab.cpp">
+      <Filter>Pliki źródłowe\gui\views</Filter>
+    </ClCompile>
+    <ClCompile Include="src\gui\views\analysis_tab.cpp">
       <Filter>Pliki źródłowe\gui\views</Filter>
     </ClCompile>
     <ClCompile Include="src\gui\views\fields\field_analysis_toolbar.cpp">

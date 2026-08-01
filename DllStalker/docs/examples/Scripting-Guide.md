@@ -4,13 +4,15 @@ This guide covers the runtime Lua scripting surface exposed through the Scriptin
 
 ## Getting Started
 
-1. Pick a tutorial package under [`packages/`](packages/).
-2. Copy the package folder into `stalker_runtime/mods` next to the injected proxy DLL.
-3. Edit the constants at the top of `main.lua` (`IMAGE`, `CLASS`, `FIELD`, `METHOD`, offsets) for the target game.
+1. Create a folder under `stalker_runtime/mods` next to the injected proxy DLL (or drop a loose `.lua` file there for a Safe one-shot).
+2. Optionally copy [`manifest.template.json`](manifest.template.json) or [`manifest.curated.template.json`](manifest.curated.template.json) as `manifest.json` when you need a display name, Curated profile, custom `entry_file`, or non-default timing budgets. Omit it for a basic Safe folder that uses `main.lua`.
+3. Write `main.lua` from the API tables and Lua samples in this guide. Edit game-specific names (`IMAGE`, `CLASS`, `FIELD`, `METHOD`, offsets) for the target title.
 4. Open the Scripting dock, click **Refresh**, select the package, then click **Start**.
 5. Watch the script console and audit counters. Use **Stop** or **Reload** for long-running tick scripts.
 
 Loose `.lua` files placed directly under `stalker_runtime/mods` are also discovered — **any file name** works (e.g. `heal.lua`, `watcher.lua`). They run as Safe profile scripts with default timing budgets.
+
+See also [`README.md`](README.md) for the examples folder layout and [`Manifest-Schema.md`](Manifest-Schema.md) for parsed fields.
 
 ## API Reference
 
@@ -152,20 +154,15 @@ Optional fields: `version`, `author` (tooltip metadata only), `entry_file` when 
 
 Do not use JSON comments, nested `configuration_defaults`, or `permissions` as supported manifest contracts.
 
-## Tutorial Packages
+## Starters
 
-Tutorial packages live under [`packages/`](packages/) and are intended to be copied into `stalker_runtime/mods`.
+There is no `packages/` tutorial tree under `docs/examples/` today. Use:
 
-| Package | Profile | Demonstrates |
-|---------|---------|--------------|
-| [`metadata-lookup`](packages/metadata-lookup/) | Safe | Loaded image listing, class/field/method lookup, `address_hex()` diagnostics. |
-| [`heal-below-threshold`](packages/heal-below-threshold/) | Safe | Instance lookup, field read/write, cooperative `ds.stop()`. |
-| [`list-instances`](packages/list-instances/) | Safe | `find_objects`, bounded logging, diagnostic addresses. |
-| [`invoke-method`](packages/invoke-method/) | Safe | `instance:invoke(signature, ...)` with explicit signatures and arguments. |
-| [`field-watcher`](packages/field-watcher/) | Safe | `ds.on_tick`, field polling, `ds.on_unload`. |
-| [`curated-offset-read`](packages/curated-offset-read/) | Curated | `ds.types.Instance.wrap`, `read_i32`, optional guarded `write_i32`. |
+- This guide’s **Safe API Example** and **Curated Lua Example** sections (and the API tables above)
+- [`manifest.template.json`](manifest.template.json) / [`manifest.curated.template.json`](manifest.curated.template.json)
+- [`README.md`](README.md) for the short authoring checklist
 
-The packages use placeholder class names and fields. Expect to edit the constants before running them in a specific game.
+Placeholder class/field names in the samples must be edited for each game.
 
 ## Handles
 

@@ -2,7 +2,7 @@
 
 DllStalker is a C++20 internal DLL toolkit for Unity games (IL2CPP and Mono). It combines runtime API resolution, preset-based hook installation and optional debug tooling (GUI + console) for reverse-engineering workflows.
 
-![Gif snipper](DllStalker/docs/Snippet.gif)
+![Gif snippet](DllStalker/docs/Snippet.gif)
 
 ## Core Goals
 

@@ -5,6 +5,7 @@
 #include "gui/views/dock/exporter_tab.h"
 
 #include "dumper/sdk_exporter.h"
+#include "gui/chrome/ui_theme.h"
 #include "gui/session_state.h"
 
 #include "imgui.h"
@@ -169,6 +170,10 @@ void RenderExporterTab(ControlPanelSessionState& state) {
 	const char* scopeLabels[]  = { "Active class", "Entire image", "Bookmarked classes" };
 	const char* formatLabels[] = { "C++ (.h)", "C# (.cs)" };
 
+	const float scopeWidth =
+	    ImGui::CalcTextSize("Bookmarked classes").x + ImGui::GetStyle().FramePadding.x * 2.0f
+	    + ImGui::GetFrameHeight();
+	ImGui::SetNextItemWidth(scopeWidth);
 	ImGui::Combo("Scope", &scopeIndex, scopeLabels, IM_ARRAYSIZE(scopeLabels));
 	ImGui::SameLine();
 	const bool fieldsAlways = true;
@@ -181,6 +186,7 @@ void RenderExporterTab(ControlPanelSessionState& state) {
 	ImGui::SameLine();
 	ImGui::Checkbox("Enums", &includeEnums);
 
+	ImGui::SetNextItemWidth(140.0f);
 	ImGui::Combo("Format", &formatIndex, formatLabels, IM_ARRAYSIZE(formatLabels));
 	ImGui::SameLine();
 	ImGui::SetNextItemWidth(180.0f);
@@ -189,7 +195,7 @@ void RenderExporterTab(ControlPanelSessionState& state) {
 	const char* extHint = (formatIndex == 0) ? ".h" : ".cs";
 	ImGui::TextDisabled("%s", extHint);
 
-	if (ImGui::Button("Export")) {
+	if (UiTheme::PrimaryButton("Export")) {
 		lastStatus.clear();
 		if (!state.dumper) {
 			lastStatus = "Dumper not initialized.";

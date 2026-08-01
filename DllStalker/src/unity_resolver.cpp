@@ -2,6 +2,8 @@
 
 #include "unity_resolver.h"
 
+#include "services/bootstrap_log.h"
+
 #include <cstring>
 
 namespace Engine
@@ -26,16 +28,17 @@ bool UnityResolver::Init() {
     GetModuleFileNameA(NULL, path, MAX_PATH);
     if (strstr(path, "CrashHandler")) return false;
 
-    printf("[*] Unity Resolver Initializing...\n");
+    Engine::Services::BootstrapLog::Write("[*] Unity Resolver Initializing...\n");
 
     if (!module.WaitForModule()) return false;
     if (!module.ResolveExports()) return false;
 
-    printf("[*] Exports resolved. Attempting to get domain...\n");
+    Engine::Services::BootstrapLog::Write("[*] Exports resolved. Attempting to get domain...\n");
     if (!module.ResolveDomain()) return false;
 
     module.EnsureThreadAttached();
-    printf("[+] Unity Resolver Ready (%s)\n", module.isIL2CPP ? "IL2CPP" : "Mono");
+    Engine::Services::BootstrapLog::Write(
+        "[+] Unity Resolver Ready (%s)\n", module.isIL2CPP ? "IL2CPP" : "Mono");
     return true;
 }
 } // namespace Engine

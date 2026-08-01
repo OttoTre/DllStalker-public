@@ -41,7 +41,9 @@ struct UnityExports
     typedef void*    (__cdecl* t_MonoMethodSignature)(void* method);   // Mono
     typedef uint32_t (__cdecl* t_MonoSigGetParamCount)(void* sig);     // Mono
     typedef void*    (__cdecl* t_MonoSigGetParams)(void* sig, void** iter);   // Mono
+    typedef void*    (__cdecl* t_MonoSigGetReturnType)(void* sig);            // Mono
     typedef void*    (__cdecl* t_Il2CppMethodGetParam)(void* method, uint32_t index); // IL2CPP
+    typedef void*    (__cdecl* t_Il2CppMethodGetReturnType)(void* method);    // IL2CPP
     typedef uint32_t (__cdecl* t_MethodGetFlags)(void* method, uint32_t* outImplFlags); // Shared
     // Managed-string allocation. Different signatures per engine: IL2CPP
     // keeps a process-global default domain so it doesn't take one;
@@ -138,7 +140,9 @@ struct UnityExports
     // IL2CPP exposes a direct index getter on the method; Mono iterates the
     // signature's param list.
     t_Il2CppMethodGetParam  fnIl2cppMethodGetParam   = nullptr;
+    t_Il2CppMethodGetReturnType fnIl2cppMethodGetReturnType = nullptr;
     t_MonoSigGetParams      fnMonoSignatureGetParams = nullptr;
+    t_MonoSigGetReturnType  fnMonoSignatureGetReturnType = nullptr;
     // Managed-string allocation (one per engine, identical purpose).
     t_Il2CppStringNew       fnIl2cppStringNew = nullptr;
     t_MonoStringNew         fnMonoStringNew   = nullptr;

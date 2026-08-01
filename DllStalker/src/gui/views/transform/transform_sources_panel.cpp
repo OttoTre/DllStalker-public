@@ -4,11 +4,13 @@
 
 #include "gui/views/transform/transform_sources_panel.h"
 
+#include "gui/chrome/ui_theme.h"
 #include "gui/config.h"
 #include "gui/state/transform/transform_model.h"
 
 #include "imgui.h"
 
+#include <algorithm>
 #include <cstdio>
 
 namespace Gui::Views
@@ -33,13 +35,18 @@ const char* SourceKindLabel(Gui::State::TransformSourceKind kind) {
 void RenderTransformSourcesPanel(Gui::State::TransformModel& model) {
     ImGui::Text("Sources (%zu)", model.sources.size());
 
+    const float selectColW =
+        (std::max)(ImGui::CalcTextSize("Selected").x, ImGui::CalcTextSize("Select").x)
+        + ImGui::GetStyle().FramePadding.x * 2.0f
+        + ImGui::GetStyle().CellPadding.x * 2.0f;
+
     if (ImGui::BeginTable("TransformSources", 5,
                           ImGuiTableFlags_Borders | ImGuiTableFlags_RowBg | ImGuiTableFlags_SizingStretchProp)) {
         ImGui::TableSetupColumn("Kind", ImGuiTableColumnFlags_WidthFixed, 72.0f * Gui::Config::GUI_SCALE);
         ImGui::TableSetupColumn("Label", ImGuiTableColumnFlags_WidthStretch);
         ImGui::TableSetupColumn("Type", ImGuiTableColumnFlags_WidthStretch);
         ImGui::TableSetupColumn("Ptr", ImGuiTableColumnFlags_WidthFixed, 110.0f * Gui::Config::GUI_SCALE);
-        ImGui::TableSetupColumn("", ImGuiTableColumnFlags_WidthFixed, 56.0f * Gui::Config::GUI_SCALE);
+        ImGui::TableSetupColumn("", ImGuiTableColumnFlags_WidthFixed, selectColW);
         ImGui::TableHeadersRow();
 
         for (int i = 0; i < static_cast<int>(model.sources.size()); ++i) {
@@ -49,7 +56,7 @@ void RenderTransformSourcesPanel(Gui::State::TransformModel& model) {
 
             ImGui::TableSetColumnIndex(0);
             if (selected) {
-                ImGui::TextColored(ImVec4(0.55f, 0.85f, 1.f, 1.f), "%s", SourceKindLabel(src.kind));
+                ImGui::TextColored(UiTheme::Tokens().semantic_link, "%s", SourceKindLabel(src.kind));
             }
             else {
                 ImGui::TextUnformatted(SourceKindLabel(src.kind));

@@ -23,7 +23,6 @@ enum class RuntimeKind : uint8_t {
     Unknown = 0,
     Il2Cpp,
     Mono,
-    Native,
 };
 
 constexpr ScriptHandle kInvalidScriptHandle = 0;

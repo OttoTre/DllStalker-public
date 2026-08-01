@@ -6,6 +6,7 @@
 
 #include <cstring>
 #include <functional>
+#include <memory>
 #include <utility>
 
 #include "scripting/bridge/script_command.h"
@@ -91,6 +92,18 @@ DS_Status ResolveInstanceAddress(LuaScriptHostContext& hostContext,
         .status;
 }
 
+// Heap-owned results for queued main-thread work. Capturing stack locals by
+// reference into ExecuteAbiTask lambdas is unsafe on command timeout: the
+// waiter returns while the job may still write those slots.
+struct AbiReadI32Op {
+    DS_Status status = DS_Status::DS_ERR_BAD_ARGUMENT;
+    int32_t value = 0;
+};
+
+struct AbiWriteI32Op {
+    DS_Status status = DS_Status::DS_ERR_BAD_ARGUMENT;
+};
+
 } // namespace
 
 void BindCurrentScriptAbiContext(LuaScriptHostContext* hostContext) noexcept {
@@ -112,34 +125,37 @@ DS_Status AbiInstanceReadI32(ScriptHandle scriptHandle, uint32_t offset, int32_t
         return DS_Status::DS_ERR_CANCELLED;
     }
 
-    DS_Status taskStatus = DS_Status::DS_ERR_BAD_ARGUMENT;
-    const ScriptResult command = ExecuteAbiTask(*hostContext, [&]() -> DS_Status {
+    const auto op = std::make_shared<AbiReadI32Op>();
+    const ScriptResult command = ExecuteAbiTask(*hostContext, [hostContext, scriptHandle, offset, op]() -> DS_Status {
         uintptr_t instance = 0;
-        taskStatus = ResolveInstanceAddress(*hostContext, scriptHandle, instance);
-        if (!IsOk(taskStatus)) {
-            return taskStatus;
+        op->status = ResolveInstanceAddress(*hostContext, scriptHandle, instance);
+        if (!IsOk(op->status)) {
+            return op->status;
         }
 
         uintptr_t address = 0;
         if (!AddOffset(instance, offset, address)) {
-            taskStatus = DS_Status::DS_ERR_BAD_ARGUMENT;
-            return taskStatus;
+            op->status = DS_Status::DS_ERR_BAD_ARGUMENT;
+            return op->status;
         }
 
         int32_t value = 0;
         if (!Engine::Memory::TryReadValue(address, value)) {
-            taskStatus = DS_Status::DS_ERR_INVALID_POINTER;
-            return taskStatus;
+            op->status = DS_Status::DS_ERR_INVALID_POINTER;
+            return op->status;
         }
 
-        outValue = value;
-        taskStatus = DS_Status::DS_OK;
-        return taskStatus;
+        op->value = value;
+        op->status = DS_Status::DS_OK;
+        return op->status;
     });
 
-    const DS_Status finalStatus = IsOk(command.status) ? taskStatus : command.status;
+    const DS_Status finalStatus = IsOk(command.status) ? op->status : command.status;
+    if (IsOk(finalStatus)) {
+        outValue = op->value;
+    }
     RecordAbiAudit(*hostContext, ScriptAuditKind::Read, finalStatus, scriptHandle, offset,
-                   static_cast<uint64_t>(static_cast<uint32_t>(outValue)));
+                   static_cast<uint64_t>(static_cast<uint32_t>(IsOk(finalStatus) ? op->value : 0)));
     return finalStatus;
 }
 
@@ -152,30 +168,30 @@ DS_Status AbiInstanceWriteI32(ScriptHandle scriptHandle, uint32_t offset, int32_
         return DS_Status::DS_ERR_CANCELLED;
     }
 
-    DS_Status taskStatus = DS_Status::DS_ERR_BAD_ARGUMENT;
-    const ScriptResult command = ExecuteAbiTask(*hostContext, [&]() -> DS_Status {
+    const auto op = std::make_shared<AbiWriteI32Op>();
+    const ScriptResult command = ExecuteAbiTask(*hostContext, [hostContext, scriptHandle, offset, value, op]() -> DS_Status {
         uintptr_t instance = 0;
-        taskStatus = ResolveInstanceAddress(*hostContext, scriptHandle, instance);
-        if (!IsOk(taskStatus)) {
-            return taskStatus;
+        op->status = ResolveInstanceAddress(*hostContext, scriptHandle, instance);
+        if (!IsOk(op->status)) {
+            return op->status;
         }
 
         uintptr_t address = 0;
         if (!AddOffset(instance, offset, address)) {
-            taskStatus = DS_Status::DS_ERR_BAD_ARGUMENT;
-            return taskStatus;
+            op->status = DS_Status::DS_ERR_BAD_ARGUMENT;
+            return op->status;
         }
 
         if (!Engine::Memory::TryWriteValue(address, value)) {
-            taskStatus = DS_Status::DS_ERR_INVALID_POINTER;
-            return taskStatus;
+            op->status = DS_Status::DS_ERR_INVALID_POINTER;
+            return op->status;
         }
 
-        taskStatus = DS_Status::DS_OK;
-        return taskStatus;
+        op->status = DS_Status::DS_OK;
+        return op->status;
     });
 
-    const DS_Status finalStatus = IsOk(command.status) ? taskStatus : command.status;
+    const DS_Status finalStatus = IsOk(command.status) ? op->status : command.status;
     RecordAbiAudit(*hostContext, ScriptAuditKind::Write, finalStatus, scriptHandle, offset,
                    static_cast<uint64_t>(static_cast<uint32_t>(value)));
     return finalStatus;

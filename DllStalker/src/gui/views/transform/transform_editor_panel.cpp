@@ -4,6 +4,7 @@
 
 #include "gui/views/transform/transform_editor_panel.h"
 
+#include "gui/chrome/ui_theme.h"
 #include "gui/config.h"
 #include "gui/session_state.h"
 #include "gui/state/transform/transform_model.h"
@@ -28,10 +29,10 @@ bool RenderVec3Inputs(const char* label,
                       const Gui::State::Vec3f& baseline,
                       bool disabled) {
     ImGui::PushID(label);
+    ImGui::AlignTextToFramePadding();
     ImGui::TextUnformatted(label);
     ImGui::SameLine();
 
-    constexpr ImVec4 kDirtyBg{ 0.55f, 0.42f, 0.12f, 1.0f };
     const float      baselineComps[3] = { baseline.x, baseline.y, baseline.z };
     const char*      axisLabels[3]    = { "X##v", "Y##v", "Z##v" };
 
@@ -47,7 +48,8 @@ bool RenderVec3Inputs(const char* label,
         ImGui::SetNextItemWidth(70.0f * Gui::Config::GUI_SCALE);
         const bool dirty = values[axis] != baselineComps[axis];
         if (dirty) {
-            ImGui::PushStyleColor(ImGuiCol_FrameBg, kDirtyBg);
+            const ImVec4& w = UiTheme::Tokens().warning;
+            ImGui::PushStyleColor(ImGuiCol_FrameBg, ImVec4(w.x, w.y, w.z, 0.45f));
         }
         ImGui::InputFloat(axisLabels[axis], &values[axis], 0.f, 0.f, "%.3f");
         if (ImGui::IsItemDeactivatedAfterEdit()
@@ -117,8 +119,7 @@ void MaybeSeedEditBuffers(Gui::State::TransformModel& model,
 } // namespace
 
 void RenderTransformEditorPanel(ControlPanelSessionState& state,
-                                Gui::State::TransformModel& model,
-                                const Gui::State::TransformSource& selected) {
+                                Gui::State::TransformModel& model) {
     const bool fetchedNow = model.fetched.load();
     if (fetchedNow && !model.hadFetchedLastFrame) {
         model.needsSeed = true;
@@ -141,20 +142,13 @@ void RenderTransformEditorPanel(ControlPanelSessionState& state,
     MaybeSeedEditBuffers(model, display, userDraftPre);
     model.lastSeenCacheGeneration = cacheGen;
 
-    ImGui::Text("Selected: %s (%s)", selected.label.c_str(), selected.typeName.c_str());
-    ImGui::SameLine();
-    char selPtr[32]{};
-    snprintf(selPtr, sizeof(selPtr), "0x%llX",
-             static_cast<unsigned long long>(reinterpret_cast<uintptr_t>(selected.instancePtr)));
-    ImGui::TextDisabled("%s", selPtr);
-    if (!display.name.empty()) {
-        ImGui::SameLine();
-        ImGui::TextDisabled("name \"%s\"", display.name.c_str());
-    }
-
-    if (ImGui::SmallButton("Refresh##transformTab")) {
-        model.InvalidateFetch();
-        model.EnqueueFetch(state, model.selectedIndex);
+    {
+        const auto& world = display.worldPosition;
+        ImGui::TextDisabled("World  (%.3f, %.3f, %.3f)", world.x, world.y, world.z);
+        if (!display.name.empty()) {
+            ImGui::SameLine();
+            ImGui::TextDisabled("name \"%s\"", display.name.c_str());
+        }
     }
 
     const bool disabled = model.editLocked;
@@ -212,30 +206,12 @@ void RenderTransformEditorPanel(ControlPanelSessionState& state,
         }
     }
 
-    const auto& world = display.worldPosition;
-    ImGui::Text("World Position  (%.3f, %.3f, %.3f)", world.x, world.y, world.z);
-
     if (!display.parentName.empty() || display.parentPtr != nullptr) {
-        ImGui::Text("Parent: %s", display.parentName.empty() ? "?" : display.parentName.c_str());
+        ImGui::TextDisabled("Parent: %s",
+                            display.parentName.empty() ? "?" : display.parentName.c_str());
     }
     else {
         ImGui::TextDisabled("Parent: (none)");
-    }
-
-    if (display.hasActiveSelf || selected.isGameObject
-        || selected.kind == Gui::State::TransformSourceKind::ImplicitGameObject) {
-        bool active = display.activeSelf;
-        if (disabled) {
-            ImGui::BeginDisabled();
-        }
-        if (ImGui::Checkbox("Active (activeSelf)", &active)) {
-            if (!disabled) {
-                model.EnqueueApplyActive(state, model.selectedIndex, active);
-            }
-        }
-        if (disabled) {
-            ImGui::EndDisabled();
-        }
     }
 }
 

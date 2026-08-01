@@ -67,29 +67,4 @@ uintptr_t Reflection::GetFieldOffset(void* image, const char* className, const c
 
     return offset;
 }
-
-void* Reflection::GetStaticFieldAddr(void* image, const char* className, const char* fieldName,
-                                     const char* ns) const {
-    m_module.EnsureThreadAttached();
-    if (!image) return nullptr;
-
-    void* klass = m_module.exports.fnGetClass(image, ns, className);
-    if (!klass) return nullptr;
-
-    void* field = m_module.exports.fnGetFieldFromName(klass, fieldName);
-    if (!field) return nullptr;
-
-    if (m_module.isIL2CPP) {
-        return m_module.exports.fnFieldGetStaticAddr(field);
-    }
-    else {
-        // Mono: Find the VTable for this class
-        void* vtable = m_module.exports.fnGetVTable(m_module.domain, klass);
-        if (!vtable) return nullptr;
-
-        // In Mono, the static data is stored at an offset inside the VTable
-        uintptr_t offset = (uintptr_t)m_module.exports.fnGetFieldOffset(field);
-        return (void*)((uintptr_t)vtable + offset);
-    }
-}
 } // namespace Engine

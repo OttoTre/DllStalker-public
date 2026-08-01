@@ -4,13 +4,14 @@
 
 #include "gui/app/app_shell.h"
 
+#include "gui/chrome/ui_theme.h"
 #include "gui/session_state.h"
 #include "gui/config.h"
 #include "gui/views/class_browser.h"
 #include "gui/views/dock/utilities_dock.h"
-#include "gui/views/error_modals.h"
 #include "gui/views/image_picker.h"
 #include "gui/views/inspector_frame.h"
+#include "services/bootstrap_log.h"
 
 #include "imgui.h"
 #include "imgui_impl_win32.h"
@@ -78,8 +79,6 @@ void RenderControlPanelContent(ControlPanelSessionState& state) {
         RenderMainLayout(state, copyFeedback);
     }
 
-    Views::RenderErrorPopups();
-
     ImGui::End();
 }
 
@@ -134,11 +133,15 @@ void RenderMainLayout(ControlPanelSessionState& state, Views::CopyFeedbackState&
         ImGui::TableSetupColumn("Viewport", ImGuiTableColumnFlags_WidthStretch, 0.70f);
 
         ImGui::TableNextColumn();
+        ImGui::BeginChild("SidebarPane", ImVec2(0, 0), false);
         Views::RenderImageSelection(state);
         Views::RenderClassBrowser(state);
+        ImGui::EndChild();
 
         ImGui::TableNextColumn();
+        ImGui::BeginChild("InspectorPane", ImVec2(0, 0), false);
         Views::RenderInspector(state, copyFeedback);
+        ImGui::EndChild();
 
         ImGui::EndTable();
     }
@@ -150,7 +153,7 @@ void RenderMainLayout(ControlPanelSessionState& state, Views::CopyFeedbackState&
 }
 
 void RenderDumperInitialization(ControlPanelSessionState& state) {
-    if (ImGui::Button("Init Dumper Engine", ImVec2(-1, 40))) {
+    if (UiTheme::PrimaryButton("Init Dumper Engine", ImVec2(-1, 40))) {
         try {
             state.dumper = std::make_shared<Engine::UnityDumper>(Engine::Unity);
             state.ClearImageCache();
@@ -161,6 +164,30 @@ void RenderDumperInitialization(ControlPanelSessionState& state) {
         }
         catch (...) { }
     }
+
+    const auto lines = Engine::Services::BootstrapLog::Snapshot();
+    ImGui::TextDisabled("System log (%zu / %zu)",
+                        lines.size(),
+                        Engine::Services::BootstrapLog::kMaxLines);
+
+    const float logHeight = (std::max)(ImGui::GetContentRegionAvail().y, 1.0f);
+    if (!ImGui::BeginChild("BootstrapLog", ImVec2(0, logHeight), true, ImGuiWindowFlags_HorizontalScrollbar)) {
+        ImGui::EndChild();
+        return;
+    }
+
+    if (lines.empty()) {
+        ImGui::TextUnformatted("Waiting for bootstrap…");
+    } else {
+        for (const auto& line : lines) {
+            ImGui::TextUnformatted(line.c_str());
+        }
+        if (ImGui::GetScrollY() >= ImGui::GetScrollMaxY() - 4.0f) {
+            ImGui::SetScrollHereY(1.0f);
+        }
+    }
+
+    ImGui::EndChild();
 }
 } // namespace Gui::AppShell
 

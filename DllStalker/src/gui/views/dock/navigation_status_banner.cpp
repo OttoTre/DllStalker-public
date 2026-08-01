@@ -4,6 +4,7 @@
 
 #include "gui/views/dock/navigation_status_banner.h"
 
+#include "gui/chrome/ui_theme.h"
 #include "gui/session_state.h"
 #include "gui/state/navigation/history_steady_time.h"
 
@@ -16,8 +17,7 @@ void RenderNavigationStatusBanner(const ControlPanelSessionState& state) {
     if (!state.navigationFeedback.IsStatusFresh(now)) {
         return;
     }
-    ImGui::TextColored(ImVec4(0.9f, 0.85f, 0.4f, 1.0f),
-                       "%s", state.navigationFeedback.statusMessage);
+    UiTheme::DrawWarningText(state.navigationFeedback.statusMessage);
 }
 } // namespace Gui::Views
 

@@ -2,6 +2,8 @@
 
 #include "engine/unity_module.h"
 
+#include "services/bootstrap_log.h"
+
 #include <string>
 
 namespace Engine
@@ -15,7 +17,9 @@ bool UnityModule::WaitForModule() {
         if ((hModule = GetModuleHandleA("mono-2.0-bdwgc.dll"))) { isIL2CPP = false; return true; }
         ++attempts;
     }
-    printf("[-] Timed out waiting for IL2CPP/Mono module to load (%d attempts).\n", kModuleWaitMaxAttempts);
+    Engine::Services::BootstrapLog::Write(
+        "[-] Timed out waiting for IL2CPP/Mono module to load (%d attempts).\n",
+        kModuleWaitMaxAttempts);
     return false;
 }
 
@@ -84,10 +88,13 @@ bool UnityModule::ResolveExports() {
         // allocation. Best-effort; missing exports just disable certain
         // arg shapes in the UI.
         exports.fnIl2cppMethodGetParam = (E::t_Il2CppMethodGetParam)Resolve("method_get_param");
+        exports.fnIl2cppMethodGetReturnType =
+            (E::t_Il2CppMethodGetReturnType)Resolve("method_get_return_type");
         exports.fnIl2cppStringNew      = (E::t_Il2CppStringNew)Resolve("string_new");
         exports.fnClassFromType        = (E::t_ClassFromType)Resolve("class_from_il2cpp_type");
         if (!exports.fnFieldGetStaticAddr) {
-            printf("[*] Fallback: Trying alternative export for field_get_static_terminate_data\n");
+            Engine::Services::BootstrapLog::Write(
+                "[*] Fallback: Trying alternative export for field_get_static_terminate_data\n");
             exports.fnFieldGetStaticAddr = (E::t_FieldGetStaticAddr)Resolve("field_static_get_value");
         }
 
@@ -112,6 +119,8 @@ bool UnityModule::ResolveExports() {
         // for per-arg type names, and allocate managed strings for string
         // arguments. mono_string_new takes the active domain.
         exports.fnMonoSignatureGetParams = (E::t_MonoSigGetParams)Resolve("signature_get_params");
+        exports.fnMonoSignatureGetReturnType =
+            (E::t_MonoSigGetReturnType)Resolve("signature_get_return_type");
         exports.fnMonoStringNew          = (E::t_MonoStringNew)Resolve("string_new");
         exports.fnClassFromType          = (E::t_ClassFromType)Resolve("class_from_mono_type");
 
@@ -127,13 +136,15 @@ bool UnityModule::ResolveExports() {
     const bool releaseValid = coreValid && releaseEngineValid;
 
     if (!releaseValid) {
-        printf("[-] Failed to resolve release-required Unity exports.\n");
+        Engine::Services::BootstrapLog::Write(
+            "[-] Failed to resolve release-required Unity exports.\n");
         return false;
     }
 
 #ifdef ENABLE_DUMPER
     if (!(coreValid && debugEngineValid)) {
-        printf("[-] Failed to resolve debug-required Unity exports.\n");
+        Engine::Services::BootstrapLog::Write(
+            "[-] Failed to resolve debug-required Unity exports.\n");
         return false;
     }
 #endif
@@ -152,7 +163,10 @@ bool UnityModule::ResolveDomain() {
         Sleep(100);
         attempts++;
     }
-    printf("[*] Domain retrieval %s after %d attempts.\n", domain ? "succeeded" : "failed", attempts);
+    Engine::Services::BootstrapLog::Write(
+        "[*] Domain retrieval %s after %d attempts.\n",
+        domain ? "succeeded" : "failed",
+        attempts);
     return domain != nullptr;
 }
 

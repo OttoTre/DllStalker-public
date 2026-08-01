@@ -2,6 +2,7 @@
 
 #include "presets/hook_preset.h"
 
+#include "services/bootstrap_log.h"
 #include "unity_resolver.h"
 
 #include <cstring>
@@ -39,21 +40,34 @@ const HookPreset* Find(const char* name) {
 }
 
 void InstallSelected(const char* name) {
+    // "-" (and empty/null) is the intentional "no hooks" selection used by
+    // hook_installer — not a missing preset.
+    if (!name || name[0] == '\0' || std::strcmp(name, "-") == 0) {
+        Engine::Services::BootstrapLog::Write(
+            "[*] No preset selected; skipping hooks.\n");
+        return;
+    }
+
     const HookPreset* preset = Find(name);
     if (!preset) {
-        printf("[!] Preset not found: %s\n", name ? name : "<null>");
+        Engine::Services::BootstrapLog::Write(
+            "[!] Preset not found: %s\n", name);
         return;
     }
 
     void* image = Engine::Unity.FindImage(preset->targetAssembly ? preset->targetAssembly : "");
     if (!image) {
-        printf("[!] Failed to find target assembly for preset '%s': %s\n",
-               preset->name,
-               preset->targetAssembly ? preset->targetAssembly : "<null>");
+        Engine::Services::BootstrapLog::Write(
+            "[!] Failed to find target assembly for preset '%s': %s\n",
+            preset->name,
+            preset->targetAssembly ? preset->targetAssembly : "<null>");
         return;
     }
 
-    printf("[*] Installing preset: %s (assembly=%s)\n", preset->name, preset->targetAssembly);
+    Engine::Services::BootstrapLog::Write(
+        "[*] Installing preset: %s (assembly=%s)\n",
+        preset->name,
+        preset->targetAssembly);
     if (preset->install) {
         preset->install(image);
     }

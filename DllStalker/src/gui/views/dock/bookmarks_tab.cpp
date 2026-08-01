@@ -4,6 +4,7 @@
 
 #include "gui/views/dock/bookmarks_tab.h"
 
+#include "gui/chrome/ui_theme.h"
 #include "gui/session_state.h"
 #include "gui/views/dock/navigation_status_banner.h"
 
@@ -26,12 +27,10 @@ namespace
 constexpr size_t kBookmarkNameBufferSize = 128;
 
 struct BookmarksTabModalState {
-    bool     openCreateRequested = false;
     bool     openRenameRequested = false;
     uint32_t pendingRenameId     = 0;
     bool     showInlineNameError = false;
 
-    char createNameBuffer[kBookmarkNameBufferSize] = "";
     char renameNameBuffer[kBookmarkNameBufferSize] = "";
 };
 
@@ -49,11 +48,6 @@ void CopyTruncated(char* dst, size_t dstSize, const char* src) {
         return;
     }
     strncpy_s(dst, dstSize, src, _TRUNCATE);
-}
-
-std::string DefaultBookmarkName(const ControlPanelSessionState& state) {
-    const auto snap = state.CaptureNavigationSnapshot("");
-    return State::NavigationLocationLabel(snap);
 }
 
 float MeasureSmallButtonWidth(const char* label) {
@@ -118,46 +112,6 @@ void RenderBookmarkRow(ControlPanelSessionState& state,
         ImVec2(xStart, yRow + ImGui::GetFrameHeight() + style.ItemSpacing.y));
 }
 
-void RenderCreatePopup(ControlPanelSessionState& state) {
-    auto& modal = ModalState();
-    if (!ImGui::BeginPopupModal("BookmarksCreatePopup", nullptr,
-                                ImGuiWindowFlags_AlwaysAutoResize)) {
-        return;
-    }
-
-    ImGui::TextUnformatted("Bookmark current view");
-    ImGui::Separator();
-
-    ImGui::SetNextItemWidth(280.0f);
-    ImGui::InputText("Name##bookmarkCreate",
-                     modal.createNameBuffer, sizeof(modal.createNameBuffer));
-
-    if (modal.showInlineNameError) {
-        ImGui::TextColored(ImVec4(0.95f, 0.35f, 0.35f, 1.0f),
-                           "Name cannot be empty.");
-    }
-
-    ImGui::Separator();
-    if (ImGui::Button("Save", ImVec2(120, 0))) {
-        if (state.BookmarkCurrentView(modal.createNameBuffer)) {
-            modal.createNameBuffer[0]   = '\0';
-            modal.showInlineNameError   = false;
-            ImGui::CloseCurrentPopup();
-        }
-        else {
-            modal.showInlineNameError = true;
-        }
-    }
-    ImGui::SameLine();
-    if (ImGui::Button("Cancel", ImVec2(120, 0))) {
-        modal.createNameBuffer[0]   = '\0';
-        modal.showInlineNameError   = false;
-        ImGui::CloseCurrentPopup();
-    }
-
-    ImGui::EndPopup();
-}
-
 void RenderRenamePopup(ControlPanelSessionState& state) {
     auto& modal = ModalState();
     if (!ImGui::BeginPopupModal("BookmarksRenamePopup", nullptr,
@@ -183,8 +137,7 @@ void RenderRenamePopup(ControlPanelSessionState& state) {
                      modal.renameNameBuffer, sizeof(modal.renameNameBuffer));
 
     if (modal.showInlineNameError) {
-        ImGui::TextColored(ImVec4(0.95f, 0.35f, 0.35f, 1.0f),
-                           "Name cannot be empty.");
+        UiTheme::DrawErrorText("Name cannot be empty.");
     }
 
     ImGui::Separator();
@@ -214,23 +167,6 @@ void RenderRenamePopup(ControlPanelSessionState& state) {
 void RenderBookmarksTab(ControlPanelSessionState& state) {
     auto& modal = ModalState();
 
-    const bool canBookmark = state.selectedClass != nullptr;
-
-    if (!canBookmark) ImGui::BeginDisabled();
-    const bool createClicked = ImGui::Button("Bookmark current...");
-    if (!canBookmark) ImGui::EndDisabled();
-    if (!canBookmark && ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled)) {
-        ImGui::SetTooltip("Select a class first.");
-    }
-    if (createClicked) {
-        const std::string preset = DefaultBookmarkName(state);
-        CopyTruncated(modal.createNameBuffer, sizeof(modal.createNameBuffer),
-                      preset.c_str());
-        modal.showInlineNameError = false;
-        modal.openCreateRequested = true;
-    }
-
-    ImGui::SameLine();
     if (ImGui::Button("Clear all##bookmarks")) {
         state.bookmarks.Clear();
     }
@@ -242,7 +178,7 @@ void RenderBookmarksTab(ControlPanelSessionState& state) {
     RenderNavigationStatusBanner(state);
 
     if (state.bookmarks.bookmarks.empty()) {
-        ImGui::TextUnformatted("No bookmarks yet. Use \"Bookmark current...\" to save the active inspector view.");
+        ImGui::TextUnformatted("No bookmarks yet. Use the star in the Inspector header to save the active view.");
     }
 
     if (!state.bookmarks.bookmarks.empty()) {
@@ -274,16 +210,11 @@ void RenderBookmarksTab(ControlPanelSessionState& state) {
         ImGui::EndChild();
     }
 
-    if (modal.openCreateRequested) {
-        ImGui::OpenPopup("BookmarksCreatePopup");
-        modal.openCreateRequested = false;
-    }
     if (modal.openRenameRequested) {
         ImGui::OpenPopup("BookmarksRenamePopup");
         modal.openRenameRequested = false;
     }
 
-    RenderCreatePopup(state);
     RenderRenamePopup(state);
 }
 } // namespace Gui::Views

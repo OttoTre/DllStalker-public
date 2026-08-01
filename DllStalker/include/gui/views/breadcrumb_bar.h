@@ -11,7 +11,8 @@ struct ControlPanelSessionState;
 
 namespace Gui::Views
 {
-void RenderBreadcrumbBar(ControlPanelSessionState& state);
+// continueSameLine: keep the first crumb on the current line (after bookmark star).
+void RenderBreadcrumbBar(ControlPanelSessionState& state, bool continueSameLine = false);
 } // namespace Gui::Views
 
 #endif // ENABLE_DUMPER

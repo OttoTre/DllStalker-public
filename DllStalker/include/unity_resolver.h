@@ -49,10 +49,6 @@ public:
                              const char* ns = GLOBAL_NAMESPACE) const {
         return reflection.GetFieldOffset(image, className, fieldName, ns);
     }
-    void* GetStaticFieldAddr(void* image, const char* className, const char* fieldName,
-                             const char* ns = GLOBAL_NAMESPACE) const {
-        return reflection.GetStaticFieldAddr(image, className, fieldName, ns);
-    }
 
 private:
     UnityResolver();

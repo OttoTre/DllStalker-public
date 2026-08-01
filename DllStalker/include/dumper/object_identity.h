@@ -24,11 +24,6 @@ public:
 
     std::string TryGetClassNameFromInstance(void* instance, void** outKlass = nullptr) const;
 
-    // Returns the engine-reported size of the managed object pointed at
-    // by `instance`, falling back to a 256-byte heuristic when the size
-    // export isn't resolved.
-    int GetObjectSize(void* instance) const; // Used in diagnostics for hex dumps and static field scans.
-
     // Returns true when `klass` is `targetName` or any class in its
     // inheritance chain has that name. Walks at most 12 levels.
     bool IsOrInheritsFrom(void* klass, const char* targetName) const;

@@ -6,16 +6,13 @@
 
 #include <string>
 
+#include "types/memory_guard.h"
+#include "types/unity_array_layout.h"
+
 namespace Engine::Dumper
 {
 namespace
 {
-// IL2CPP Il2CppArray and Mono MonoArray happen to share an identical header
-// layout on x64: length at +0x18, first element at +0x20.
-namespace UnityArrayLayout {
-    constexpr uintptr_t LengthOffset   = 0x18;
-    constexpr uintptr_t ElementsOffset = 0x20;
-}
 static_assert(sizeof(void*) == 8, "GetLiveInstances assumes the x64 Unity array header layout");
 
 constexpr size_t kMaxFindObjectsResultLength = 1'000'000;
@@ -97,7 +94,6 @@ void* LiveObjectFinder::GetSystemTypeForClass(void* klass) {
 
     if (!systemType) return nullptr;
 
-    printf("[LIVE] systemType: %p\n", systemType);
     return systemType;
 }
 
@@ -111,7 +107,6 @@ std::vector<void*> LiveObjectFinder::GetLiveInstances(void* klass) {
 
     void* systemType = GetSystemTypeForClass(klass);
     if (!systemType) {
-        printf("[LIVE] Abort: systemType == nullptr\n");
         return instances;
     }
 
@@ -151,17 +146,29 @@ std::vector<void*> LiveObjectFinder::GetLiveInstances(void* klass) {
     }
 
     const uintptr_t arrayBase = reinterpret_cast<uintptr_t>(arrayResult);
-    const size_t arraySize = *reinterpret_cast<size_t*>(arrayBase + UnityArrayLayout::LengthOffset);
-    if (arraySize > kMaxFindObjectsResultLength) {
+    size_t arraySize = 0;
+    if (!Memory::TryReadValue(arrayBase + Engine::UnityArrayLayout::LengthOffset, arraySize)) {
+        return instances;
+    }
+    if (arraySize == 0 || arraySize > kMaxFindObjectsResultLength) {
         return instances;
     }
 
     // FindObjectsOfType<T> always returns T[] of UnityEngine.Object subclasses,
-    // i.e. an array of boxed pointers; reading elements as void** is safe.
-    void** items = reinterpret_cast<void**>(arrayBase + UnityArrayLayout::ElementsOffset);
+    // i.e. an array of reference pointers at ElementsOffset.
+    const uintptr_t elementsBase = arrayBase + Engine::UnityArrayLayout::ElementsOffset;
+    if (!Memory::IsReadablePointer(reinterpret_cast<void*>(elementsBase),
+                                   arraySize * sizeof(void*))) {
+        return instances;
+    }
+
     instances.reserve(arraySize);
     for (size_t i = 0; i < arraySize; ++i) {
-        if (items[i]) instances.push_back(items[i]);
+        void* item = nullptr;
+        if (!Memory::TryReadValue(elementsBase + i * sizeof(void*), item) || !item) {
+            continue;
+        }
+        instances.push_back(item);
     }
 
     return instances;

@@ -4,7 +4,7 @@
 
 #include "services/main_thread_dispatcher.h"
 
-#include "MinHook.h"
+#include "services/bootstrap_log.h"
 #include "services/hook_installer.h"
 #include "unity_resolver.h"
 
@@ -22,7 +22,7 @@ namespace
 constexpr size_t kMaxJobsPerDrain = 16;
 
 // Queue cap so Run-spam clicks can't grow the deque without bound. Hitting
-// the cap drops the oldest job and prints a console warning.
+// the cap drops the oldest job and prints a bootstrap-log warning.
 constexpr size_t kMaxQueueDepth = 64;
 
 UnityExports::t_RuntimeInvoke g_originalRuntimeInvoke = nullptr;
@@ -105,8 +105,9 @@ void MaybeDrain() {
     // This is usually true because managed startup runs on the main thread first.
     DWORD expected = 0;
     if (g_mainThreadId.compare_exchange_strong(expected, tid) && expected == 0) {
-        printf("[+] MainThreadDispatcher: captured main thread id 0x%lX\n",
-               static_cast<unsigned long>(tid));
+        Engine::Services::BootstrapLog::Write(
+            "[+] MainThreadDispatcher: captured main thread id 0x%lX\n",
+            static_cast<unsigned long>(tid));
     }
 
     if (g_mainThreadId.load() != tid) return;
@@ -124,33 +125,16 @@ void* __cdecl RuntimeInvokeDetour(void* method, void* obj, void** params, void**
 bool InstallRuntimeInvokeHookOnce() {
     void* target = reinterpret_cast<void*>(Engine::Unity.invoker.Raw());
     if (!target) {
-        printf("[!] MainThreadDispatcher: fnRuntimeInvoke not resolved; "
-               "Method Invoker disabled.\n");
+        Engine::Services::BootstrapLog::Write(
+            "[!] MainThreadDispatcher: fnRuntimeInvoke not resolved; "
+            "Method Invoker disabled.\n");
         return false;
     }
 
-    Hooks::EnsureMinHookInitialized();
-
-    if (!Hooks::TryRegisterHookTarget(reinterpret_cast<uintptr_t>(target))) {
-        printf("[!] MainThreadDispatcher: runtime_invoke target already hooked\n");
-        return false;
-    }
-
-    if (MH_CreateHook(target, reinterpret_cast<LPVOID>(&RuntimeInvokeDetour),
-                       reinterpret_cast<LPVOID*>(&g_originalRuntimeInvoke)) != MH_OK) {
-        printf("[!] MainThreadDispatcher: MH_CreateHook(runtime_invoke @ %p) failed\n", target);
-        Hooks::UnregisterHookTarget(reinterpret_cast<uintptr_t>(target));
-        return false;
-    }
-    if (MH_EnableHook(target) != MH_OK) {
-        printf("[!] MainThreadDispatcher: MH_EnableHook(runtime_invoke @ %p) failed\n", target);
-        MH_RemoveHook(target);
-        Hooks::UnregisterHookTarget(reinterpret_cast<uintptr_t>(target));
-        return false;
-    }
-
-    printf("[+] MainThreadDispatcher: hooked runtime_invoke @ %p\n", target);
-    return true;
+    return Hooks::InstallHook(target,
+                              reinterpret_cast<LPVOID>(&RuntimeInvokeDetour),
+                              reinterpret_cast<LPVOID*>(&g_originalRuntimeInvoke),
+                              "runtime_invoke");
 }
 } // namespace
 
@@ -166,8 +150,9 @@ bool Enqueue(Job job) {
         // Drop the oldest to keep the queue bounded; prevents click-spam
         // from forcing unbounded memory growth or starving newer requests.
         g_droppedJobCount.fetch_add(1, std::memory_order_relaxed);
-        printf("[!] MainThreadDispatcher: queue full (%zu); dropping oldest job\n",
-               g_queue.size());
+        Engine::Services::BootstrapLog::Write(
+            "[!] MainThreadDispatcher: queue full (%zu); dropping oldest job\n",
+            g_queue.size());
         g_queue.pop_front();
     }
     g_queue.push_back(std::move(job));

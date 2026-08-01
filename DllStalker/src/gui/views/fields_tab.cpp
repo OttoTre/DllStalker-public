@@ -4,6 +4,7 @@
 
 #include "gui/views/fields_tab.h"
 
+#include "gui/chrome/ui_theme.h"
 #include "gui/session_state.h"
 #include "gui/config.h"
 #include "gui/infra/search_filter.h"
@@ -11,8 +12,6 @@
 #include "gui/state/fields/field_snapshot_model.h"
 #include "gui/state/fields/field_watch_model.h"
 #include "gui/state/navigation/history_steady_time.h"
-#include "gui/views/fields/field_analysis_toolbar.h"
-#include "gui/views/fields/field_compare_modal.h"
 #include "gui/views/fields/field_edit_cells.h"
 #include "types/memory_guard.h"
 #include "types/type_classifier.h"
@@ -120,14 +119,14 @@ void RenderFieldsTab(const InspectorCache& inspectorSnapshot,
         ImGui::TextUnformatted("No fields available.");
     }
 
-    if (ImGui::Button("Refresh Fields", ImVec2(140, 0))) {
+    if (UiTheme::IconRefreshButton("##refresh_fields", "Refresh fields")) {
         DoRefresh(true);
     }
 
-    ImGui::SameLine();
-    ImGui::Checkbox("Auto refresh", &state.fieldsAutoRefresh);
+    ImGui::SameLine(0.0f, ImGui::GetStyle().ItemInnerSpacing.x);
+    UiTheme::ChipToggle("Auto", &state.fieldsAutoRefresh);
 
-    ImGui::SameLine();
+    ImGui::SameLine(0.0f, ImGui::GetStyle().ItemInnerSpacing.x);
     ImGui::SetNextItemWidth(90.0f);
     ImGui::Combo("##FieldsRefreshInterval", &state.fieldsRefreshIntervalIndex, FIELD_REFRESH_INTERVAL_LABELS, IM_ARRAYSIZE(FIELD_REFRESH_INTERVAL_LABELS));
 
@@ -145,8 +144,7 @@ void RenderFieldsTab(const InspectorCache& inspectorSnapshot,
         }
     }
 
-    RenderFieldAnalysisToolbar(state, inspectorSnapshot, inCollectionView, fieldsBusy);
-
+    // Keep diff tints live on Fields when Analysis "Show changes" is on.
     if (state.fieldSnapshot.showChanges && state.fieldSnapshot.HasBaseline() && !fieldsBusy) {
         state.fieldSnapshot.RecomputeDiff(inspectorSnapshot.fields);
     }
@@ -158,24 +156,33 @@ void RenderFieldsTab(const InspectorCache& inspectorSnapshot,
     // the user clicks the root breadcrumb to return.
     const bool atNavigationRoot = state.walker.stack.size() <= 1;
     if (atNavigationRoot) {
-        ImGui::SetNextItemWidth(160.0f);
-        ImGui::Combo("Instance Source", &state.inspector.instanceSearchMode, INSTANCE_SEARCH_MODE_LABELS, IM_ARRAYSIZE(INSTANCE_SEARCH_MODE_LABELS));
+        ImGui::SetNextItemWidth(220.0f);
+        ImGui::Combo("##instance_source", &state.inspector.instanceSearchMode, INSTANCE_SEARCH_MODE_LABELS, IM_ARRAYSIZE(INSTANCE_SEARCH_MODE_LABELS));
+        if (ImGui::IsItemHovered()) {
+            ImGui::SetTooltip("Instance source: Static discovery or Live API");
+        }
 
         ImGui::SameLine();
-        if (ImGui::Button("Find Instances", ImVec2(130, 0))) {
-            if (!state.loaders.instanceSearchInProgress.load() && state.dumper && state.selectedClass) {
+        const bool searchBusy = state.loaders.instanceSearchInProgress.load();
+        if (searchBusy) {
+            ImGui::BeginDisabled();
+        }
+        if (UiTheme::IconSearchButton("##find_instances", "Find instances") && !searchBusy) {
+            if (state.dumper && state.selectedClass) {
                 if (state.inspector.instanceSearchMode == 0)
                     state.StartStaticInstanceSearch(state.dumper, state.selectedClass);
                 else
                     state.StartLiveInstanceSearch(state.dumper, state.selectedClass);
             }
         }
+        if (searchBusy) {
+            ImGui::EndDisabled();
+        }
 
         ImGui::SameLine();
-        if (state.loaders.instanceSearchInProgress.load())
+        if (searchBusy) {
             ImGui::TextUnformatted("Searching...");
-        else
-            ImGui::TextDisabled("Select source + find");
+        }
 
         std::vector<void*> instances = inspectorSnapshot.instanceCandidates;
         int selectedIndex = state.inspector.selectedInstanceIndex;
@@ -192,8 +199,9 @@ void RenderFieldsTab(const InspectorCache& inspectorSnapshot,
             }
 
             const char* preview = labels[selectedIndex].c_str();
+            ImGui::SameLine();
             ImGui::SetNextItemWidth(260.0f);
-            if (ImGui::BeginCombo("Instance", preview)) {
+            if (ImGui::BeginCombo("##instance_pick", preview)) {
                 for (int i = 0; i < static_cast<int>(labels.size()); ++i) {
                     const bool isSelected = (i == selectedIndex);
                     if (ImGui::Selectable(labels[i].c_str(), isSelected)) {
@@ -205,16 +213,21 @@ void RenderFieldsTab(const InspectorCache& inspectorSnapshot,
                 }
                 ImGui::EndCombo();
             }
+            if (ImGui::IsItemHovered()) {
+                ImGui::SetTooltip("Active instance");
+            }
         }
-        else {
+        else if (!searchBusy) {
+            ImGui::SameLine();
             ImGui::TextDisabled("No instance candidates");
         }
     }
 
     ImGui::Separator();
-    ImGui::BeginChild("FieldsStatusBar", ImVec2(0, 25 * Config::GUI_SCALE), true, ImGuiWindowFlags_NoScrollbar);
     if (copyFeedback.copiedFieldAtSeconds > 0 && (static_cast<float>(ImGui::GetTime()) - copyFeedback.copiedFieldAtSeconds) < 2.0f) {
-        ImGui::TextColored(ImVec4(0, 1, 0, 1), "Copied: %s", copyFeedback.copiedFieldOffset);
+        char msg[96] = {};
+        std::snprintf(msg, sizeof(msg), "Copied: %s", copyFeedback.copiedFieldOffset);
+        UiTheme::DrawSuccessText(msg);
     }
     else if (state.loaders.fieldsLoadInProgress.load()) {
         ImGui::TextUnformatted("Refreshing fields...");
@@ -223,7 +236,9 @@ void RenderFieldsTab(const InspectorCache& inspectorSnapshot,
         ImGui::TextUnformatted(editStatus);
     }
     else if (inspectorSnapshot.activeInstancePtr) {
-        ImGui::TextColored(ImVec4(0.3f, 0.9f, 0.3f, 1.0f), "Active: %p", inspectorSnapshot.activeInstancePtr);
+        char msg[64] = {};
+        std::snprintf(msg, sizeof(msg), "Active: %p", inspectorSnapshot.activeInstancePtr);
+        UiTheme::DrawSuccessText(msg);
         if (lastRefreshTimeStr[0] != '\0') {
             ImGui::SameLine();
             ImGui::TextDisabled("| %s: %s", lastRefreshLabel, lastRefreshTimeStr);
@@ -232,9 +247,9 @@ void RenderFieldsTab(const InspectorCache& inspectorSnapshot,
     else {
         ImGui::TextDisabled("Tip: Double-click Offset to copy");
     }
-    ImGui::EndChild();
 
-    ImGui::InputText("Filter Fields", state.fieldsFilterBuffer, sizeof(state.fieldsFilterBuffer));
+    UiTheme::ElevatedFilter("##fields_filter", state.fieldsFilterBuffer, sizeof(state.fieldsFilterBuffer),
+                            -1.0f, "Filter...");
     if (strcmp(state.fieldsCachedOriginalFilter.c_str(), state.fieldsFilterBuffer) != 0) {
         state.fieldsCachedOriginalFilter = state.fieldsFilterBuffer;
         state.fieldsCachedLowerFilter = Gui::Infra::SearchFilter::ToLowercase(state.fieldsFilterBuffer);
@@ -242,15 +257,39 @@ void RenderFieldsTab(const InspectorCache& inspectorSnapshot,
     const bool fieldsFilterIsEmpty = state.fieldsCachedLowerFilter.empty();
 
     size_t visibleFieldCount = 0;
-    if (ImGui::BeginTable("FieldsTable", 5,
-        ImGuiTableFlags_Borders | ImGuiTableFlags_RowBg | ImGuiTableFlags_ScrollY |
-        ImGuiTableFlags_Resizable | ImGuiTableFlags_SizingStretchProp)) {
-        ImGui::TableSetupColumn("W", ImGuiTableColumnFlags_WidthFixed, 28.0f * Config::GUI_SCALE);
-        ImGui::TableSetupColumn("Name", ImGuiTableColumnFlags_WidthStretch, 0.32f);
-        ImGui::TableSetupColumn("Type", ImGuiTableColumnFlags_WidthStretch, 0.18f);
-        ImGui::TableSetupColumn("Offset", ImGuiTableColumnFlags_WidthStretch, 0.18f);
-        ImGui::TableSetupColumn("Value", ImGuiTableColumnFlags_WidthStretch, 0.22f);
-        ImGui::TableHeadersRow();
+    const bool skipEmptyLoadingTable =
+        inspectorLoadInProgress && inspectorSnapshot.fields.empty();
+    if (skipEmptyLoadingTable) {
+        ImGui::TextDisabled("Waiting for fields...");
+    }
+    else if (UiTheme::BeginInspectorTable("FieldsTable", 5)) {
+        const float glyphColW = 28.0f * Config::GUI_SCALE;
+        ImGui::TableSetupColumn("##W", ImGuiTableColumnFlags_WidthFixed, glyphColW);
+        ImGui::TableSetupColumn("Name", ImGuiTableColumnFlags_WidthStretch, 0.30f);
+        ImGui::TableSetupColumn("Type", ImGuiTableColumnFlags_WidthStretch, 0.16f);
+        ImGui::TableSetupColumn("Offset", ImGuiTableColumnFlags_WidthFixed, 72.0f * Config::GUI_SCALE);
+        ImGui::TableSetupColumn("Value", ImGuiTableColumnFlags_WidthStretch, 0.42f);
+
+        ImGui::TableNextRow(ImGuiTableRowFlags_Headers);
+        ImGui::TableSetColumnIndex(0);
+        {
+            ImGui::TableHeader("##W");
+            const ImVec2 rmin = ImGui::GetItemRectMin();
+            const ImVec2 rmax = ImGui::GetItemRectMax();
+            const ImVec2 textSize = ImGui::CalcTextSize("W");
+            ImGui::GetWindowDrawList()->AddText(
+                ImVec2(rmin.x + (rmax.x - rmin.x - textSize.x) * 0.5f,
+                       rmin.y + (rmax.y - rmin.y - textSize.y) * 0.5f),
+                ImGui::GetColorU32(ImGuiCol_Text), "W");
+        }
+        ImGui::TableSetColumnIndex(1);
+        ImGui::TableHeader("Name");
+        ImGui::TableSetColumnIndex(2);
+        ImGui::TableHeader("Type");
+        ImGui::TableSetColumnIndex(3);
+        ImGui::TableHeader("Offset");
+        ImGui::TableSetColumnIndex(4);
+        ImGui::TableHeader("Value");
 
         for (size_t fieldIndex = 0; fieldIndex < inspectorSnapshot.fields.size(); ++fieldIndex) {
             const auto& field = inspectorSnapshot.fields[fieldIndex];
@@ -271,14 +310,13 @@ void RenderFieldsTab(const InspectorCache& inspectorSnapshot,
             ImGui::TableSetColumnIndex(0);
             const bool watchable = state.dumper != nullptr && state.fieldWatch.IsWatchable(field);
             if (!watchable) {
-                ImGui::BeginDisabled();
-                ImGui::TextDisabled("-");
-                ImGui::EndDisabled();
+                UiTheme::CenteredDisabledGlyph("-", glyphColW);
             }
             else {
                 const bool watching = state.fieldWatch.IsWatching(state, field);
                 const char* const watchLabel = watching ? "*" : "W";
-                if (ImGui::Button(watchLabel, ImVec2(24.0f * Config::GUI_SCALE, 0))) {
+                const ImVec4* watchColor = watching ? &UiTheme::Tokens().error : nullptr;
+                if (UiTheme::CenteredGlyphButton("##watch", watchLabel, glyphColW, watchColor)) {
                     const auto result = state.fieldWatch.Toggle(state, field);
                     if (result == State::FieldWatchModel::ToggleResult::RejectedCap) {
                         state.navigationFeedback.MarkStatus("Watchlist full (32)",
@@ -291,14 +329,16 @@ void RenderFieldsTab(const InspectorCache& inspectorSnapshot,
             }
 
             ImGui::TableSetColumnIndex(1);
-            ImGui::TextUnformatted(field.name.c_str());
+            UiTheme::DrawColumnName(field.name.c_str());
             ImGui::TableSetColumnIndex(2);
-            ImGui::TextUnformatted(field.type.c_str());
+            UiTheme::DrawColumnType(field.type.c_str());
             ImGui::TableSetColumnIndex(3);
 
             char offsetBuffer[32] = {};
             snprintf(offsetBuffer, sizeof(offsetBuffer), "0x%zX", field.offset);
 
+            ImGui::PushStyleColor(ImGuiCol_Text, UiTheme::Tokens().semantic_link);
+            ImGui::AlignTextToFramePadding();
             if (ImGui::Selectable(offsetBuffer, false, ImGuiSelectableFlags_AllowDoubleClick)) {
                 if (ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left)) {
                     ImGui::SetClipboardText(offsetBuffer);
@@ -306,6 +346,7 @@ void RenderFieldsTab(const InspectorCache& inspectorSnapshot,
                     copyFeedback.copiedFieldAtSeconds = static_cast<float>(ImGui::GetTime());
                 }
             }
+            ImGui::PopStyleColor();
 
             ImGui::TableSetColumnIndex(4);
             const bool haveFieldTarget = inspectorSnapshot.activeInstancePtr != nullptr
@@ -347,8 +388,8 @@ void RenderFieldsTab(const InspectorCache& inspectorSnapshot,
                     // so the user can distinguish "step into one object"
                     // from "browse N elements" at a glance.
                     const ImVec4 linkColor = isNavigableCollection
-                        ? ImVec4(0.55f, 0.95f, 0.55f, 1.0f) // green
-                        : ImVec4(0.55f, 0.75f, 1.0f, 1.0f); // blue
+                        ? UiTheme::Tokens().semantic_struct
+                        : UiTheme::Tokens().semantic_link;
                     ImGui::PushStyleColor(ImGuiCol_Text, linkColor);
                     if (ImGui::SmallButton(field.valueDisplay.c_str())) {
                         bool navigated = false;
@@ -402,14 +443,12 @@ void RenderFieldsTab(const InspectorCache& inspectorSnapshot,
             ImGui::PopID();
         }
 
-        ImGui::EndTable();
+        UiTheme::EndInspectorTable();
 
         if (!fieldsFilterIsEmpty && visibleFieldCount == 0) {
             ImGui::TextDisabled("No fields match filter.");
         }
     }
-
-    RenderTwoInstanceCompareModal(state, inspectorSnapshot);
 }
 } // namespace Gui::Views
 

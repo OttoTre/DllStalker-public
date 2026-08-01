@@ -10,6 +10,7 @@
 
 #include "scripting/core/script_result.h"
 #include "scripting/core/script_sandbox.h"
+#include "scripting/core/script_path_util.h"
 #include "scripting/runtime/script_runtime.h"
 
 struct lua_State;
@@ -17,7 +18,6 @@ struct lua_State;
 namespace Scripting
 {
 
-std::string Utf8FromWide(const std::wstring& text);
 bool ResolveModuleLoadPath(const LuaScriptHostContext& hostContext,
                            const char* moduleName,
                            char* outLoadPath,

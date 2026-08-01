@@ -21,7 +21,6 @@ struct HandleRegistryEntry {
     ScriptHandleKind kind = ScriptHandleKind::Invalid;
     RuntimeKind     runtimeKind = RuntimeKind::Unknown;
     uint64_t        expectedClassIdentity = 0;
-    int32_t         unityInstanceId = 0;
     ScriptInstanceId ownerScriptId{};
     bool            isAlive = false;
 };
@@ -34,7 +33,6 @@ struct ResolvedHandle {
     ScriptHandleKind kind = ScriptHandleKind::Invalid;
     RuntimeKind runtimeKind = RuntimeKind::Unknown;
     uint64_t expectedClassIdentity = 0;
-    int32_t unityInstanceId = 0;
 };
 
 struct RegisterHandleRequest {
@@ -42,7 +40,6 @@ struct RegisterHandleRequest {
     ScriptHandleKind kind = ScriptHandleKind::Invalid;
     RuntimeKind     runtimeKind = RuntimeKind::Unknown;
     uint64_t        expectedClassIdentity = 0;
-    int32_t         unityInstanceId = 0;
     ScriptInstanceId ownerScriptId{};
 };
 

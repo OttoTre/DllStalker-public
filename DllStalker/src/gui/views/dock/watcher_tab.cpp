@@ -4,6 +4,7 @@
 
 #include "gui/views/dock/watcher_tab.h"
 
+#include "gui/chrome/ui_theme.h"
 #include "gui/session_state.h"
 #include "gui/config.h"
 #include "gui/views/dock/navigation_status_banner.h"
@@ -111,12 +112,40 @@ void RenderSelectedPlot(const Gui::State::WatchedField& entry) {
                      ImVec2(-1.0f, plotH));
 }
 
+float MeasureSmallButtonWidth(const char* label) {
+    const ImGuiStyle& style = ImGui::GetStyle();
+    return ImGui::CalcTextSize(label).x + style.FramePadding.x * 2.0f;
+}
+
+float WatcherActionsColumnWidth(bool anyPlottable) {
+    const ImGuiStyle& style = ImGui::GetStyle();
+    const float jumpW = MeasureSmallButtonWidth("Jump");
+    const float removeW = MeasureSmallButtonWidth("Remove");
+    float width = jumpW + removeW + style.ItemInnerSpacing.x;
+    if (anyPlottable) {
+        width += MeasureSmallButtonWidth("Plot") + style.ItemInnerSpacing.x;
+    }
+    // Cell padding left+right so buttons are not clipped against column borders.
+    width += style.CellPadding.x * 2.0f;
+    return width;
+}
+
 void RenderWatcherWatchlist(ControlPanelSessionState& state,
                             const std::vector<Gui::State::WatchedField>& entries) {
     if (!ImGui::BeginChild("WatcherWatchlist", ImVec2(0, 0), false)) {
         ImGui::EndChild();
         return;
     }
+
+    bool anyPlottable = false;
+    for (const auto& entry : entries) {
+        if (entry.plotEnabled) {
+            anyPlottable = true;
+            break;
+        }
+    }
+    const float actionsW = WatcherActionsColumnWidth(anyPlottable);
+    const ImGuiStyle& style = ImGui::GetStyle();
 
     if (ImGui::BeginTable("WatcherTable",
                           4,
@@ -125,7 +154,7 @@ void RenderWatcherWatchlist(ControlPanelSessionState& state,
         ImGui::TableSetupColumn("Field", ImGuiTableColumnFlags_WidthStretch, 0.28f);
         ImGui::TableSetupColumn("Type", ImGuiTableColumnFlags_WidthStretch, 0.18f);
         ImGui::TableSetupColumn("Value", ImGuiTableColumnFlags_WidthStretch, 0.30f);
-        ImGui::TableSetupColumn("Actions", ImGuiTableColumnFlags_WidthFixed, 168.0f);
+        ImGui::TableSetupColumn("Actions", ImGuiTableColumnFlags_WidthFixed, actionsW);
         ImGui::TableHeadersRow();
 
         for (const auto& entry : entries) {
@@ -134,17 +163,17 @@ void RenderWatcherWatchlist(ControlPanelSessionState& state,
             ImGui::PushID(static_cast<int>(id));
 
             ImGui::TableSetColumnIndex(0);
-            ImGui::TextUnformatted(WatchEntryLabel(entry).c_str());
+            UiTheme::DrawColumnName(WatchEntryLabel(entry).c_str());
 
             ImGui::TableSetColumnIndex(1);
-            ImGui::TextUnformatted(entry.typeName.c_str());
+            UiTheme::DrawColumnType(entry.typeName.c_str());
 
             ImGui::TableSetColumnIndex(2);
             if (entry.stale) {
                 ImGui::TextDisabled("%s", entry.lastDisplay.c_str());
             }
             else {
-                ImGui::TextUnformatted(entry.lastDisplay.c_str());
+                UiTheme::DrawColumnValue(entry.lastDisplay.c_str());
             }
 
             ImGui::TableSetColumnIndex(3);
@@ -153,7 +182,12 @@ void RenderWatcherWatchlist(ControlPanelSessionState& state,
                     state.fieldWatch.SetSelectedPlotWatchId(id);
                     state.fieldWatch.focusChartsTab = true;
                 }
-                ImGui::SameLine();
+                ImGui::SameLine(0.0f, style.ItemInnerSpacing.x);
+            }
+            else if (anyPlottable) {
+                // Reserve Plot slot so Jump/Remove align with plottable rows.
+                ImGui::Dummy(ImVec2(MeasureSmallButtonWidth("Plot"), ImGui::GetFrameHeight()));
+                ImGui::SameLine(0.0f, style.ItemInnerSpacing.x);
             }
             if (ImGui::SmallButton("Jump")) {
                 const auto result = state.TryApplyNavigationSnapshot(entry.restoreSnapshot);
@@ -164,7 +198,7 @@ void RenderWatcherWatchlist(ControlPanelSessionState& state,
                                                         Gui::State::HistorySteadyNowSeconds());
                 }
             }
-            ImGui::SameLine();
+            ImGui::SameLine(0.0f, style.ItemInnerSpacing.x);
             if (ImGui::SmallButton("Remove##watcher")) {
                 state.fieldWatch.Remove(id);
             }
@@ -225,7 +259,12 @@ void RenderWatcherCharts(ControlPanelSessionState& state,
     }
 
     ImGui::SameLine();
-    ImGui::SetNextItemWidth(130.0f);
+    {
+        const float modeW =
+            ImGui::CalcTextSize("Every sample").x + ImGui::GetStyle().FramePadding.x * 2.0f
+            + ImGui::GetFrameHeight();
+        ImGui::SetNextItemWidth(modeW);
+    }
     int modeIndex = EntryPlotModeIndex(*entry);
     if (ImGui::Combo("Mode", &modeIndex, WATCHER_ENTRY_PLOT_MODE_LABELS, IM_ARRAYSIZE(WATCHER_ENTRY_PLOT_MODE_LABELS))) {
         state.fieldWatch.SetEntryPlotMode(entry->id,
@@ -250,7 +289,7 @@ void RenderWatcherTab(ControlPanelSessionState& state) {
     ImGui::SameLine();
     ImGui::TextUnformatted("Poll");
     ImGui::SameLine();
-    ImGui::SetNextItemWidth(84.0f);
+    ImGui::SetNextItemWidth(110.0f);
     if (ImGui::Combo("##WatcherPollInterval",
                      &state.fieldWatch.sampleIntervalIndex,
                      WATCHER_INTERVAL_LABELS,
@@ -261,7 +300,12 @@ void RenderWatcherTab(ControlPanelSessionState& state) {
     ImGui::SameLine();
     ImGui::TextUnformatted("Default chart");
     ImGui::SameLine();
-    ImGui::SetNextItemWidth(118.0f);
+    {
+        const float modeW =
+            ImGui::CalcTextSize("Every sample").x + ImGui::GetStyle().FramePadding.x * 2.0f
+            + ImGui::GetFrameHeight();
+        ImGui::SetNextItemWidth(modeW);
+    }
     if (ImGui::Combo("##WatcherDefaultPlotMode",
                      &state.fieldWatch.defaultPlotModeIndex,
                      WATCHER_PLOT_MODE_LABELS,
@@ -294,7 +338,7 @@ void RenderWatcherTab(ControlPanelSessionState& state) {
         snprintf(chartsTabLabel, sizeof(chartsTabLabel), "Charts (%zu)", plottableCount);
     }
 
-    if (!ImGui::BeginTabBar("WatcherInner")) {
+    if (!UiTheme::BeginUnderlineTabBar("WatcherInner")) {
         return;
     }
 
@@ -308,7 +352,7 @@ void RenderWatcherTab(ControlPanelSessionState& state) {
         ImGui::EndTabItem();
     }
 
-    ImGui::EndTabBar();
+    UiTheme::EndUnderlineTabBar();
 }
 } // namespace Gui::Views
 

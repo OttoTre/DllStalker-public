@@ -4,6 +4,7 @@
 
 #include "gui/views/dock/call_logger_tab.h"
 
+#include "gui/chrome/ui_theme.h"
 #include "gui/session_state.h"
 #include "gui/config.h"
 
@@ -101,7 +102,7 @@ void RenderCallLoggerTab(ControlPanelSessionState& state) {
         lineCount = state.callLog.lines.size();
     }
 
-    if (!ImGui::BeginTabBar("LoggerInner")) {
+    if (!UiTheme::BeginUnderlineTabBar("LoggerInner")) {
         return;
     }
 
@@ -137,7 +138,7 @@ void RenderCallLoggerTab(ControlPanelSessionState& state) {
         ImGui::EndTabItem();
     }
 
-    ImGui::EndTabBar();
+    UiTheme::EndUnderlineTabBar();
 }
 } // namespace Gui::Views
 

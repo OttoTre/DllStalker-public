@@ -5,6 +5,7 @@
 #include "gui/control_panel.h"
 
 #include "gui/app/app_shell.h"
+#include "gui/chrome/ui_theme.h"
 #include "gui/config.h"
 #include "gui/infra/dx11_renderer.h"
 #include "gui/infra/imgui_context_guard.h"
@@ -29,16 +30,10 @@ void OnWindowResize(UINT width, UINT height) {
     }
 }
 
-// Applies Config::GUI_SCALE to font size and widget metrics.
 void ApplyGuiScale()
 {
-    ImGuiIO& io = ImGui::GetIO();
-    io.Fonts->Clear();
-    io.Fonts->AddFontDefault();
-    io.FontGlobalScale = Config::GUI_SCALE;
-
-    ImGuiStyle& style = ImGui::GetStyle();
-    style.ScaleAllSizes(Config::GUI_SCALE);
+    UiTheme::LoadFonts();
+    UiTheme::ApplyDllStalkerTheme();
 }
 
 // --- Initialization helpers ---

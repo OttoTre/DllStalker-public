@@ -42,9 +42,7 @@ public:
         return m_fields.GetEnumLiterals(enumKlass);
     }
 
-    void* FindStaticInstance(void* klass)                         { return m_staticFinder.FindStaticInstance(klass); }
     std::vector<void*> FindStaticInstanceCandidates(void* klass)  { return m_staticFinder.FindStaticInstanceCandidates(klass); }
-    void* GetSystemTypeForClass(void* klass)                       { return m_liveFinder.GetSystemTypeForClass(klass); }
     std::vector<void*> GetLiveInstances(void* klass)               { return m_liveFinder.GetLiveInstances(klass); }
 
     Dumper::SdkExportResult ExportSdk(const std::vector<ClassInfo>& classes,

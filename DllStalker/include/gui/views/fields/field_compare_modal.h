@@ -12,8 +12,7 @@ struct InspectorCache;
 
 namespace Gui::Views
 {
-void RequestOpenTwoInstanceCompareModal();
-void RenderTwoInstanceCompareModal(ControlPanelSessionState& state,
+void RenderTwoInstanceComparePanel(ControlPanelSessionState& state,
                                    const InspectorCache& inspectorSnapshot);
 } // namespace Gui::Views
 

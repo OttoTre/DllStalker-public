@@ -70,7 +70,6 @@ struct DispatcherHealth {
     uint64_t lastDrainTickMs = 0;
     uint64_t drainAgeMs = 0;
     uint32_t capturedMainThreadId = 0;
-    uint32_t inFlightCommandCount = 0;
 };
 
 // Bounded waitable command channel on top of MainThreadDispatcher.

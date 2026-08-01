@@ -31,9 +31,6 @@ public:
     uintptr_t GetFieldOffset(void* image, const char* className, const char* fieldName,
                              const char* ns = ReflectionDefaults::kGlobalNamespace) const;
 
-    void* GetStaticFieldAddr(void* image, const char* className, const char* fieldName,
-                             const char* ns = ReflectionDefaults::kGlobalNamespace) const;
-
 private:
     const UnityModule& m_module;
 };

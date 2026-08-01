@@ -12,18 +12,13 @@
 #include "dumper/object_identity.h"
 #include "types/memory_guard.h"
 #include "types/type_classifier.h"
+#include "types/unity_array_layout.h"
 #include "types/value_decoder.h"
 
 namespace Engine::Dumper
 {
 namespace
 {
-// IL2CPP Il2CppArray and Mono MonoArray happen to share an identical header
-// layout on x64: length at +0x18, first element at +0x20.
-namespace UnityArrayLayout {
-    constexpr uintptr_t LengthOffset   = 0x18;
-    constexpr uintptr_t ElementsOffset = 0x20;
-}
 static_assert(sizeof(void*) == 8, "GetCollectionView assumes the x64 Unity array header layout");
 
 constexpr size_t kMaxFindObjectsResultLength = 1'000'000;
@@ -88,7 +83,7 @@ std::vector<FieldInfo> CollectionView::GetCollectionView(const FieldInfo& field)
         if (!Memory::TryReadValue<uintptr_t>(field.valueAddress, arrayBase) || arrayBase == 0) {
             return view;
         }
-        if (!Memory::TryReadValue(arrayBase + UnityArrayLayout::LengthOffset, length)) {
+        if (!Memory::TryReadValue(arrayBase + Engine::UnityArrayLayout::LengthOffset, length)) {
             return view;
         }
         elementTypeName = StripArraySuffix(field.type);
@@ -129,7 +124,7 @@ std::vector<FieldInfo> CollectionView::GetCollectionView(const FieldInfo& field)
         // Cross-check against the underlying array's allocated capacity so
         // a corrupted _size can't make us walk past the buffer.
         size_t allocated = 0;
-        if (!Memory::TryReadValue(arrayBase + UnityArrayLayout::LengthOffset, allocated)) {
+        if (!Memory::TryReadValue(arrayBase + Engine::UnityArrayLayout::LengthOffset, allocated)) {
             return view;
         }
         length = std::min<size_t>(static_cast<size_t>(logicalSize), allocated);
@@ -173,7 +168,7 @@ std::vector<FieldInfo> CollectionView::GetCollectionView(const FieldInfo& field)
         }
     }
 
-    const uintptr_t elementsBase = arrayBase + UnityArrayLayout::ElementsOffset;
+    const uintptr_t elementsBase = arrayBase + Engine::UnityArrayLayout::ElementsOffset;
     if (!Memory::IsReadablePointer(reinterpret_cast<void*>(elementsBase), elementSize * length)) {
         return view;
     }

@@ -4,9 +4,11 @@
 
 #include "gui/views/fields/field_compare_modal.h"
 
+#include "gui/chrome/ui_theme.h"
 #include "gui/session_state.h"
 #include "gui/state/fields/field_path_resolver.h"
 #include "gui/state/fields/field_snapshot_model.h"
+#include "gui/views/class_label_lookup.h"
 
 #include "imgui.h"
 
@@ -32,8 +34,7 @@ enum class TwoInstanceCompareMode {
     CurrentPath = 1,
 };
 
-struct TwoInstanceModalState {
-    bool openRequested = false;
+struct TwoInstanceCompareState {
     int instanceIndexA = 0;
     int instanceIndexB = 1;
     int compareMode = static_cast<int>(TwoInstanceCompareMode::ClassFields);
@@ -50,8 +51,8 @@ struct TwoInstanceModalState {
     bool pathDiffers = false;
 };
 
-TwoInstanceModalState& TwoInstanceModal() {
-    static TwoInstanceModalState s_state;
+TwoInstanceCompareState& CompareState() {
+    static TwoInstanceCompareState s_state;
     return s_state;
 }
 
@@ -59,15 +60,8 @@ std::string LookupSidebarClassName(const ControlPanelSessionState& state) {
     if (!state.selectedClass) {
         return {};
     }
-    for (const auto& cl : state.GetClassCacheSnapshot()) {
-        if (cl.klassPtr == state.selectedClass) {
-            if (!cl.ns.empty()) {
-                return cl.ns + "::" + cl.name;
-            }
-            return cl.name;
-        }
-    }
-    return "<class>";
+    const std::string label = LookupClassDisplayName(state, state.selectedClass);
+    return label.empty() ? std::string("<class>") : label;
 }
 
 std::string InstanceLabel(const std::vector<void*>& instances, int index) {
@@ -76,13 +70,13 @@ std::string InstanceLabel(const std::vector<void*>& instances, int index) {
     return buffer;
 }
 
-void ResetResults(TwoInstanceModalState& modal) {
+void ResetResults(TwoInstanceCompareState& modal) {
     modal.hasCompareResult = false;
     modal.hasPathResult = false;
     modal.rows.clear();
 }
 
-void BuildClassCompareRows(TwoInstanceModalState& modal,
+void BuildClassCompareRows(TwoInstanceCompareState& modal,
                            ControlPanelSessionState& state,
                            void* instanceA,
                            void* instanceB) {
@@ -133,7 +127,7 @@ void BuildClassCompareRows(TwoInstanceModalState& modal,
     modal.hasCompareResult = true;
 }
 
-void BuildPathCompareRows(TwoInstanceModalState& modal,
+void BuildPathCompareRows(TwoInstanceCompareState& modal,
                           ControlPanelSessionState& state,
                           const InspectorCache& inspectorSnapshot,
                           bool inCollectionView,
@@ -174,34 +168,17 @@ void BuildPathCompareRows(TwoInstanceModalState& modal,
 }
 } // namespace
 
-void RequestOpenTwoInstanceCompareModal() {
-    TwoInstanceModal().openRequested = true;
-}
-
-void RenderTwoInstanceCompareModal(ControlPanelSessionState& state,
+void RenderTwoInstanceComparePanel(ControlPanelSessionState& state,
                                    const InspectorCache& inspectorSnapshot) {
-    auto& modal = TwoInstanceModal();
-    if (modal.openRequested) {
-        ImGui::OpenPopup("CompareTwoInstancesPopup");
-        modal.openRequested = false;
-    }
-
-    if (!ImGui::BeginPopupModal("CompareTwoInstancesPopup", nullptr,
-                                ImGuiWindowFlags_AlwaysAutoResize)) {
-        return;
-    }
+    auto& modal = CompareState();
 
     const std::vector<void*>& instances = state.inspector.rootInstanceCandidates;
     const bool inCollectionView = !state.walker.stack.empty() && state.walker.stack.back().isCollection;
     const bool pathContextAvailable = state.walker.stack.size() > 1;
 
     if (instances.size() < 2 || !state.selectedClass || !state.dumper) {
-        ImGui::TextUnformatted("Need at least two root instance candidates (use Find Instances at class root).");
-        if (ImGui::Button("Close", ImVec2(120, 0))) {
-            ResetResults(modal);
-            ImGui::CloseCurrentPopup();
-        }
-        ImGui::EndPopup();
+        ImGui::TextDisabled(
+            "Need at least two root instance candidates (use Find Instances at class root).");
         return;
     }
 
@@ -254,8 +231,7 @@ void RenderTwoInstanceCompareModal(ControlPanelSessionState& state,
         if (inCollectionView) {
             const int elementCount = static_cast<int>(inspectorSnapshot.fields.size());
             if (elementCount <= 0) {
-                ImGui::TextColored(ImVec4(1.0f, 0.45f, 0.35f, 1.0f),
-                                   "Collection has no elements to compare.");
+                UiTheme::DrawErrorText("Collection has no elements to compare.");
             }
             else {
                 if (modal.collectionElementIndex < 0) {
@@ -286,16 +262,17 @@ void RenderTwoInstanceCompareModal(ControlPanelSessionState& state,
             }
         }
         else {
-            ImGui::TextColored(ImVec4(1.0f, 0.45f, 0.35f, 1.0f),
-                               "No fields loaded for the current object.");
+            UiTheme::DrawErrorText("No fields loaded for the current object.");
         }
         ImGui::Spacing();
     }
     else if (modal.compareMode == classMode && state.walker.stack.size() > 1) {
         const std::string classLabel = LookupSidebarClassName(state);
-        ImGui::TextColored(ImVec4(0.95f, 0.85f, 0.35f, 1.0f),
-                           "Class fields mode compares declared fields of %s.",
-                           classLabel.empty() ? "<class>" : classLabel.c_str());
+        char msg[256] = {};
+        std::snprintf(msg, sizeof(msg),
+                      "Class fields mode compares declared fields of %s.",
+                      classLabel.empty() ? "<class>" : classLabel.c_str());
+        UiTheme::DrawWarningText(msg);
         ImGui::Spacing();
     }
 
@@ -309,6 +286,7 @@ void RenderTwoInstanceCompareModal(ControlPanelSessionState& state,
         ImGui::EndCombo();
     }
 
+    ImGui::SameLine();
     ImGui::SetNextItemWidth(280.0f);
     if (ImGui::BeginCombo("Instance B", InstanceLabel(instances, modal.instanceIndexB).c_str())) {
         for (int i = 0; i < static_cast<int>(instances.size()); ++i) {
@@ -319,13 +297,14 @@ void RenderTwoInstanceCompareModal(ControlPanelSessionState& state,
         ImGui::EndCombo();
     }
 
+    ImGui::SameLine();
     const bool runEnabled = modal.instanceIndexA != modal.instanceIndexB
         && (modal.compareMode != pathMode || (pathContextAvailable && (!inCollectionView || !inspectorSnapshot.fields.empty())));
 
     if (!runEnabled) {
         ImGui::BeginDisabled();
     }
-    if (ImGui::Button("Run compare", ImVec2(120, 0))) {
+    if (UiTheme::PrimaryButton("Run compare")) {
         ResetResults(modal);
         if (modal.instanceIndexA != modal.instanceIndexB) {
             void* const instanceA = instances[static_cast<size_t>(modal.instanceIndexA)];
@@ -342,50 +321,47 @@ void RenderTwoInstanceCompareModal(ControlPanelSessionState& state,
         ImGui::EndDisabled();
     }
 
-    ImGui::SameLine();
-    if (ImGui::Button("Close", ImVec2(120, 0))) {
-        ResetResults(modal);
-        ImGui::CloseCurrentPopup();
-    }
-
     if (modal.compareMode == classMode && modal.hasCompareResult && !modal.rows.empty()) {
         ImGui::Separator();
-        if (ImGui::BeginTable("TwoInstanceCompareTable", 4,
-                              ImGuiTableFlags_Borders | ImGuiTableFlags_RowBg
-                                  | ImGuiTableFlags_ScrollY | ImGuiTableFlags_Resizable,
-                              ImVec2(520.0f, 260.0f))) {
-            ImGui::TableSetupColumn("Name");
-            ImGui::TableSetupColumn("Value A");
-            ImGui::TableSetupColumn("Value B");
-            ImGui::TableSetupColumn("Type");
-            ImGui::TableHeadersRow();
+        if (ImGui::BeginChild("TwoInstanceCompareResults", ImVec2(0, 0), false)) {
+            if (ImGui::BeginTable("TwoInstanceCompareTable", 4,
+                                  ImGuiTableFlags_Borders | ImGuiTableFlags_RowBg
+                                      | ImGuiTableFlags_ScrollY | ImGuiTableFlags_Resizable
+                                      | ImGuiTableFlags_SizingStretchProp)) {
+                ImGui::TableSetupColumn("Name", ImGuiTableColumnFlags_WidthStretch, 0.28f);
+                ImGui::TableSetupColumn("Value A", ImGuiTableColumnFlags_WidthStretch, 0.28f);
+                ImGui::TableSetupColumn("Value B", ImGuiTableColumnFlags_WidthStretch, 0.28f);
+                ImGui::TableSetupColumn("Type", ImGuiTableColumnFlags_WidthStretch, 0.16f);
+                ImGui::TableHeadersRow();
 
-            for (const auto& row : modal.rows) {
-                ImGui::TableNextRow();
-                if (row.differs) {
-                    ImGui::TableSetBgColor(
-                        ImGuiTableBgTarget_RowBg0,
-                        static_cast<ImU32>(State::FieldDiffTintToColor(State::FieldDiffTint::Changed)));
+                for (const auto& row : modal.rows) {
+                    ImGui::TableNextRow();
+                    if (row.differs) {
+                        ImGui::TableSetBgColor(
+                            ImGuiTableBgTarget_RowBg0,
+                            static_cast<ImU32>(State::FieldDiffTintToColor(State::FieldDiffTint::Changed)));
+                    }
+                    ImGui::TableSetColumnIndex(0);
+                    UiTheme::DrawColumnName(row.name.c_str());
+                    ImGui::TableSetColumnIndex(1);
+                    UiTheme::DrawColumnValue(row.valueA.c_str());
+                    ImGui::TableSetColumnIndex(2);
+                    UiTheme::DrawColumnValue(row.valueB.c_str());
+                    ImGui::TableSetColumnIndex(3);
+                    UiTheme::DrawColumnType(row.type.c_str());
                 }
-                ImGui::TableSetColumnIndex(0);
-                ImGui::TextUnformatted(row.name.c_str());
-                ImGui::TableSetColumnIndex(1);
-                ImGui::TextUnformatted(row.valueA.c_str());
-                ImGui::TableSetColumnIndex(2);
-                ImGui::TextUnformatted(row.valueB.c_str());
-                ImGui::TableSetColumnIndex(3);
-                ImGui::TextUnformatted(row.type.c_str());
+                ImGui::EndTable();
             }
-            ImGui::EndTable();
         }
+        ImGui::EndChild();
     }
     else if (modal.compareMode == pathMode && modal.hasPathResult) {
         ImGui::Separator();
         if (ImGui::BeginTable("TwoInstancePathCompare", 2,
-                              ImGuiTableFlags_Borders | ImGuiTableFlags_RowBg,
-                              ImVec2(520.0f, 0.0f))) {
-            ImGui::TableSetupColumn("Instance");
-            ImGui::TableSetupColumn("Value");
+                              ImGuiTableFlags_Borders | ImGuiTableFlags_RowBg
+                                  | ImGuiTableFlags_SizingStretchProp)) {
+            ImGui::TableSetupColumn("Instance", ImGuiTableColumnFlags_WidthStretch, 0.30f);
+            ImGui::TableSetupColumn("Value", ImGuiTableColumnFlags_WidthStretch, 0.70f);
             ImGui::TableHeadersRow();
 
             const auto drawPathRow = [&](const char* label, const std::string& value,
@@ -397,13 +373,14 @@ void RenderTwoInstanceCompareModal(ControlPanelSessionState& state,
                         static_cast<ImU32>(State::FieldDiffTintToColor(State::FieldDiffTint::Changed)));
                 }
                 ImGui::TableSetColumnIndex(0);
-                ImGui::TextUnformatted(label);
+                UiTheme::DrawColumnName(label);
                 ImGui::TableSetColumnIndex(1);
                 if (!error.empty()) {
-                    ImGui::TextColored(ImVec4(1.0f, 0.45f, 0.35f, 1.0f), "%s", error.c_str());
+                    ImGui::AlignTextToFramePadding();
+                    ImGui::TextColored(UiTheme::Tokens().error, "%s", error.c_str());
                 }
                 else {
-                    ImGui::TextUnformatted(value.c_str());
+                    UiTheme::DrawColumnValue(value.c_str());
                 }
             };
 
@@ -412,8 +389,6 @@ void RenderTwoInstanceCompareModal(ControlPanelSessionState& state,
             ImGui::EndTable();
         }
     }
-
-    ImGui::EndPopup();
 }
 } // namespace Gui::Views
 

@@ -35,19 +35,6 @@ SandboxPolicy MakeDefaultCuratedPolicy() noexcept {
     return policy;
 }
 
-SandboxPolicy MakeDefaultUnrestrictedPolicy() noexcept {
-    SandboxPolicy policy{};
-    policy.profile = ScriptProfile::Unrestricted;
-    policy.gates.allowUserFfi = true;
-    policy.gates.allowPackageLoadlib = true;
-    policy.gates.allowIo = true;
-    policy.gates.allowOs = true;
-    policy.gates.allowDebug = true;
-    policy.gates.allowRawJitControl = true;
-    policy.gates.allowWhitelistedRequireOnly = false;
-    return policy;
-}
-
 const char* const* GetBlockedBaseGlobals() noexcept {
     return kBlockedBaseGlobals;
 }

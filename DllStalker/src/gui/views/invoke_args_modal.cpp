@@ -4,6 +4,7 @@
 
 #include "gui/views/invoke_args_modal.h"
 
+#include "gui/chrome/ui_theme.h"
 #include "gui/session_state.h"
 #include "dumper/invoke_param_policy.h"
 
@@ -161,7 +162,7 @@ void RenderInvokeArgsPopup(ControlPanelSessionState& state, const InspectorCache
 
     ImGui::Separator();
 
-    if (ImGui::Button("Run", ImVec2(120, 0))) {
+    if (UiTheme::PrimaryButton("Run")) {
         std::vector<std::string> args;
         args.reserve(method.paramTypes.size());
         for (const auto& buf : state.invokeQueue.argBuffers) {

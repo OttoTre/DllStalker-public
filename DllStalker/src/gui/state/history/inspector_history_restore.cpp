@@ -6,6 +6,7 @@
 
 #include "gui/state/navigation/history_steady_time.h"
 #include "gui/state/navigation/history_validation.h"
+#include "gui/views/class_label_lookup.h"
 
 #include <algorithm>
 #include <cctype>
@@ -31,15 +32,8 @@ std::string LookupClassName(const ControlPanelSessionState& state, void* classPt
     if (!classPtr) {
         return {};
     }
-    for (const auto& cl : state.GetClassCacheSnapshot()) {
-        if (cl.klassPtr == classPtr) {
-            if (!cl.ns.empty()) {
-                return cl.ns + "::" + cl.name;
-            }
-            return cl.name;
-        }
-    }
-    return "<class>";
+    const std::string label = Views::LookupClassDisplayName(state, classPtr);
+    return label.empty() ? std::string("<class>") : label;
 }
 
 // Resolve display class name for snapshots. Sidebar cache misses after drill-in;

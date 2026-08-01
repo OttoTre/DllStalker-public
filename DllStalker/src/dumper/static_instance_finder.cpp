@@ -7,19 +7,18 @@
 #include <algorithm>
 
 #include "dumper/field_catalog.h"
+#include "dumper/object_identity.h"
 #include "types/memory_guard.h"
 
 namespace Engine::Dumper
 {
-StaticInstanceFinder::StaticInstanceFinder(UnityResolver& resolver, FieldCatalog& fields)
+StaticInstanceFinder::StaticInstanceFinder(UnityResolver& resolver,
+                                           FieldCatalog& fields,
+                                           ObjectIdentity& identity)
     : m_resolver(resolver)
     , m_fields(fields)
+    , m_identity(identity)
 {
-}
-
-void* StaticInstanceFinder::FindStaticInstance(void* klass) {
-    auto candidates = FindStaticInstanceCandidates(klass);
-    return candidates.empty() ? nullptr : candidates.front();
 }
 
 std::vector<void*> StaticInstanceFinder::FindStaticInstanceCandidates(void* klass) {
@@ -34,7 +33,8 @@ std::vector<void*> StaticInstanceFinder::FindStaticInstanceCandidates(void* klas
 
         void* instance = *reinterpret_cast<void**>(slotAddress);
         if (!instance || !Memory::IsReadablePointer(instance, sizeof(void*))) continue;
-        if (*reinterpret_cast<void**>(instance) != klass) continue;
+        // KlassFromInstance handles IL2CPP (klass at +0) and Mono (vtable → klass).
+        if (m_identity.KlassFromInstance(instance) != klass) continue;
 
         if (std::find(candidates.begin(), candidates.end(), instance) == candidates.end())
             candidates.push_back(instance);

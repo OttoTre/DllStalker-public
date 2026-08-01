@@ -4,10 +4,12 @@
 
 #include "gui/views/image_picker.h"
 
+#include "gui/chrome/ui_theme.h"
 #include "gui/session_state.h"
 
 #include "imgui.h"
 
+#include <cstdio>
 #include <string>
 #include <vector>
 
@@ -15,7 +17,8 @@ namespace Gui::Views
 {
 void RenderImageSelection(ControlPanelSessionState& state) {
     ImGui::SeparatorText("Image Selection");
-    ImGui::InputText("Image Filter", state.imageFilterBuffer, sizeof(state.imageFilterBuffer));
+    UiTheme::ElevatedFilter("##image_filter", state.imageFilterBuffer, sizeof(state.imageFilterBuffer),
+                            -1.0f, "Filter...");
 
     std::vector<Engine::ImageInfo> imageCacheSnapshot = state.GetImageCacheSnapshot();
     const char* activeImageLabel = state.imgSearchBuffer[0] ? state.imgSearchBuffer : "Select image...";
@@ -24,7 +27,10 @@ void RenderImageSelection(ControlPanelSessionState& state) {
         ImGui::TextUnformatted("Loading images...");
     }
 
-    if (ImGui::BeginCombo("Active Image", activeImageLabel)) {
+    const float refreshSize = ImGui::GetFrameHeight();
+    const float refreshGap = ImGui::GetStyle().ItemSpacing.x;
+    ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x - refreshSize - refreshGap);
+    if (ImGui::BeginCombo("##active_image", activeImageLabel)) {
         for (const auto& img : imageCacheSnapshot) {
             if (state.imageFilterBuffer[0] != '\0' && strstr(img.name.c_str(), state.imageFilterBuffer) == nullptr) {
                 continue;
@@ -46,7 +52,12 @@ void RenderImageSelection(ControlPanelSessionState& state) {
         ImGui::EndCombo();
     }
 
-    if (ImGui::Button("Refresh Images", ImVec2(-1, 0)) && !state.loaders.imageLoadInProgress.load()) {
+    ImGui::SameLine(0.0f, refreshGap);
+    const bool refreshBusy = state.loaders.imageLoadInProgress.load();
+    if (refreshBusy) {
+        ImGui::BeginDisabled();
+    }
+    if (UiTheme::IconRefreshButton("##refresh_images", "Refresh images", refreshSize) && !refreshBusy) {
         state.ClearImageCache();
         state.StartImageLoad(state.dumper);
         // If nothing is selected yet, re-arm the first-load reconciler so
@@ -57,9 +68,14 @@ void RenderImageSelection(ControlPanelSessionState& state) {
             state.pendingDefaultImageSelection = true;
         }
     }
+    if (refreshBusy) {
+        ImGui::EndDisabled();
+    }
 
     if (state.selectedImage) {
-        ImGui::TextColored(ImVec4(0, 1, 0, 1), "Attached: %s", state.imgSearchBuffer);
+        char attached[288] = {};
+        std::snprintf(attached, sizeof(attached), "Attached: %s", state.imgSearchBuffer);
+        UiTheme::DrawSuccessText(attached);
     }
 }
 } // namespace Gui::Views

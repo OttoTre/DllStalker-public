@@ -5,6 +5,7 @@
 #include "MinHook.h"
 
 #include "presets/hook_preset.h"
+#include "services/bootstrap_log.h"
 #ifdef ENABLE_DUMPER
 #include "types/memory_guard.h"
 #endif
@@ -53,20 +54,27 @@ bool IsHookTargetRegistered(uintptr_t target) {
 
 bool InstallHook(LPVOID target, LPVOID detour, LPVOID* original, const char* name) {
     if (!target) {
-        printf("[!] Hook target is null: %s\n", name ? name : "<unnamed>");
+        Engine::Services::BootstrapLog::Write(
+            "[!] Hook target is null: %s\n", name ? name : "<unnamed>");
         return false;
     }
 
 #ifdef ENABLE_DUMPER
     if (!Engine::Memory::IsExecutablePointer(target)) {
-        printf("[!] Hook target not executable: %s at %p\n", name ? name : "<unnamed>", target);
+        Engine::Services::BootstrapLog::Write(
+            "[!] Hook target not executable: %s at %p\n",
+            name ? name : "<unnamed>",
+            target);
         return false;
     }
 #endif
 
     const uintptr_t targetAddr = reinterpret_cast<uintptr_t>(target);
     if (!TryRegisterHookTarget(targetAddr)) {
-        printf("[!] Hook target already registered: %s at %p\n", name ? name : "<unnamed>", target);
+        Engine::Services::BootstrapLog::Write(
+            "[!] Hook target already registered: %s at %p\n",
+            name ? name : "<unnamed>",
+            target);
         return false;
     }
 
@@ -75,7 +83,8 @@ bool InstallHook(LPVOID target, LPVOID detour, LPVOID* original, const char* nam
     MH_STATUS status = MH_CreateHook(target, detour, original);
     if (status != MH_OK) {
         UnregisterHookTarget(targetAddr);
-        printf("[!] Failed to create hook: %s | Status: %d\n", name, status);
+        Engine::Services::BootstrapLog::Write(
+            "[!] Failed to create hook: %s | Status: %d\n", name, status);
         return false;
     }
 
@@ -83,11 +92,13 @@ bool InstallHook(LPVOID target, LPVOID detour, LPVOID* original, const char* nam
     if (enableStatus != MH_OK) {
         MH_RemoveHook(target);
         UnregisterHookTarget(targetAddr);
-        printf("[!] Failed to enable hook: %s | Status: %d\n", name, enableStatus);
+        Engine::Services::BootstrapLog::Write(
+            "[!] Failed to enable hook: %s | Status: %d\n", name, enableStatus);
         return false;
     }
 
-    printf("[+] Successfully enabled: %s at %p\n", name, target);
+    Engine::Services::BootstrapLog::Write(
+        "[+] Successfully enabled: %s at %p\n", name, target);
     return true;
 }
 
