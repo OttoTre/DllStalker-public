@@ -6,7 +6,7 @@
 
 #include "gui/state/navigation/history_steady_time.h"
 #include "gui/state/navigation/history_validation.h"
-#include "gui/views/class_label_lookup.h"
+#include "gui/views/sidebar/class_label_lookup.h"
 
 #include <algorithm>
 #include <cctype>
@@ -20,7 +20,7 @@ std::string LookupImageName(const ControlPanelSessionState& state, void* imagePt
     if (!imagePtr) {
         return {};
     }
-    for (const auto& img : state.GetImageCacheSnapshot()) {
+    for (const auto& img : *state.GetImageCacheSnapshot()) {
         if (img.imagePtr == imagePtr) {
             return img.name;
         }
@@ -188,6 +188,9 @@ State::HistoryRestoreResult ControlPanelSessionState::TryApplyNavigationSnapshot
         selectedClass = nullptr;
         ClearClassCache();
         ClearInspectorCache();
+        if (dumper) {
+            dumper->ClearValueSearchSchemas();
+        }
         StartClassLoad(dumper, snap.imagePtr);
 
         // No active instance — clear the async-instance history gate
@@ -197,6 +200,11 @@ State::HistoryRestoreResult ControlPanelSessionState::TryApplyNavigationSnapshot
     }
 
     if (snap.imagePtr) {
+        if (selectedImage != snap.imagePtr) {
+            if (dumper) {
+                dumper->ClearValueSearchSchemas();
+            }
+        }
         selectedImage = snap.imagePtr;
     }
     selectedClass = snap.classPtr;
@@ -204,8 +212,17 @@ State::HistoryRestoreResult ControlPanelSessionState::TryApplyNavigationSnapshot
     void* instanceForGate = nullptr;
     {
         std::lock_guard<std::mutex> lock(inspector.mutex);
-        editBufferStore.buffers.clear();
+        editBufferStore.Clear();
         enumLiteralCache.Clear();
+        // Drop prior Find-Instances roots so Compare cannot use stale A/B
+        // pointers against the newly restored class before search finishes.
+        // Also invalidate the methods catalog so Static/Live cancel of
+        // StartInspectorLoad cannot leave methodsCatalogLoaded=true with
+        // another class's method list (reconciler would skip reload).
+        inspector.rootInstanceCandidates.clear();
+        inspector.rootInstanceClassPtr = nullptr;
+        inspector.cache.methods.clear();
+        inspector.cache.methodsCatalogLoaded = false;
         inspector.cache.activeClassPtr = snap.classPtr;
         inspector.cache.activeInstancePtr = snap.instancePtr;
         inspector.selectedInstanceIndex = snap.instanceIndex;
@@ -215,6 +232,7 @@ State::HistoryRestoreResult ControlPanelSessionState::TryApplyNavigationSnapshot
             inspector.cache.activeInstancePtr = inspector.cache.instanceCandidates[snap.instanceIndex];
         }
         instanceForGate = inspector.cache.activeInstancePtr;
+        inspector.NoteCacheMutated();
     }
 
     walker.stack = snap.breadcrumbs;

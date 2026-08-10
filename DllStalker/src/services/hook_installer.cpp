@@ -6,9 +6,7 @@
 
 #include "presets/hook_preset.h"
 #include "services/bootstrap_log.h"
-#ifdef ENABLE_DUMPER
 #include "types/memory_guard.h"
-#endif
 
 #include <mutex>
 #include <unordered_set>
@@ -59,7 +57,6 @@ bool InstallHook(LPVOID target, LPVOID detour, LPVOID* original, const char* nam
         return false;
     }
 
-#ifdef ENABLE_DUMPER
     if (!Engine::Memory::IsExecutablePointer(target)) {
         Engine::Services::BootstrapLog::Write(
             "[!] Hook target not executable: %s at %p\n",
@@ -67,7 +64,6 @@ bool InstallHook(LPVOID target, LPVOID detour, LPVOID* original, const char* nam
             target);
         return false;
     }
-#endif
 
     const uintptr_t targetAddr = reinterpret_cast<uintptr_t>(target);
     if (!TryRegisterHookTarget(targetAddr)) {

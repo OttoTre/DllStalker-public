@@ -20,61 +20,12 @@
 
 namespace Gui::State
 {
-void FieldPlotSeries::Clear() {
-    head  = 0;
-    count = 0;
-}
-
-void FieldPlotSeries::Push(float value) {
-    samples[head] = value;
-    head          = (head + 1) % kCapacity;
-    if (count < kCapacity) {
-        ++count;
-    }
-}
-
-void FieldPlotSeries::CopyOrdered(std::vector<float>& out) const {
-    out.clear();
-    if (count == 0) {
-        return;
-    }
-    out.resize(count);
-    if (count < kCapacity) {
-        for (size_t i = 0; i < count; ++i) {
-            out[i] = samples[i];
-        }
-        return;
-    }
-    for (size_t i = 0; i < count; ++i) {
-        out[i] = samples[(head + i) % kCapacity];
-    }
-}
-
-void FieldPlotSeries::MinMax(float& outMin, float& outMax) const {
-    outMin = (std::numeric_limits<float>::max)();
-    outMax = std::numeric_limits<float>::lowest();
-    if (count == 0) {
-        outMin = 0.0f;
-        outMax = 0.0f;
-        return;
-    }
-    std::vector<float> ordered;
-    CopyOrdered(ordered);
-    for (float v : ordered) {
-        if (v < outMin) {
-            outMin = v;
-        }
-        if (v > outMax) {
-            outMax = v;
-        }
-    }
-}
-
 namespace
 {
 bool IsFiniteFloat(float v) {
     return std::isfinite(static_cast<double>(v));
 }
+
 bool TryBuildWatchAddresses(const ControlPanelSessionState& state,
                             const Engine::FieldInfo& field,
                             uintptr_t& baseAddress,
@@ -177,80 +128,53 @@ bool ShouldPushPlotSample(const WatchedField& entry,
 }
 } // namespace
 
-bool IsWatchableFieldType(const std::string& typeName) {
-    using Cat = Engine::Types::TypeCategory;
-    const Cat cat = Engine::Types::GetCategory(typeName);
-    switch (cat) {
-    case Cat::UNKNOWN:
-    case Cat::PTR:
-    case Cat::ARRAY:
-    case Cat::LIST:
-        return false;
-    default:
-        return true;
+void FieldPlotSeries::Clear() {
+    head  = 0;
+    count = 0;
+}
+
+void FieldPlotSeries::Push(float value) {
+    samples[head] = value;
+    head          = (head + 1) % kCapacity;
+    if (count < kCapacity) {
+        ++count;
     }
 }
 
-bool IsPlottableFieldType(const std::string& typeName) {
-    using Cat = Engine::Types::TypeCategory;
-    switch (Engine::Types::GetCategory(typeName)) {
-    case Cat::I4:
-    case Cat::I8:
-    case Cat::R4:
-    case Cat::R8:
-        return true;
-    default:
-        return false;
+void FieldPlotSeries::CopyOrdered(std::vector<float>& out) const {
+    out.clear();
+    if (count == 0) {
+        return;
+    }
+    out.resize(count);
+    if (count < kCapacity) {
+        for (size_t i = 0; i < count; ++i) {
+            out[i] = samples[i];
+        }
+        return;
+    }
+    for (size_t i = 0; i < count; ++i) {
+        out[i] = samples[(head + i) % kCapacity];
     }
 }
 
-bool TrySamplePlottableValue(const std::string& typeName, uintptr_t readAddress, float& out) {
-    if (!readAddress) {
-        return false;
+void FieldPlotSeries::MinMax(float& outMin, float& outMax) const {
+    outMin = (std::numeric_limits<float>::max)();
+    outMax = std::numeric_limits<float>::lowest();
+    if (count == 0) {
+        outMin = 0.0f;
+        outMax = 0.0f;
+        return;
     }
-
-    using Cat = Engine::Types::TypeCategory;
-    switch (Engine::Types::GetCategory(typeName)) {
-    case Cat::I4: {
-        int32_t v = 0;
-        if (!Engine::Memory::TryReadValue(readAddress, v)) {
-            return false;
+    std::vector<float> ordered;
+    CopyOrdered(ordered);
+    for (float v : ordered) {
+        if (v < outMin) {
+            outMin = v;
         }
-        out = static_cast<float>(v);
-        return IsFiniteFloat(out);
-    }
-    case Cat::I8: {
-        int64_t v = 0;
-        if (!Engine::Memory::TryReadValue(readAddress, v)) {
-            return false;
+        if (v > outMax) {
+            outMax = v;
         }
-        out = static_cast<float>(v);
-        return IsFiniteFloat(out);
-    }
-    case Cat::R4: {
-        float v = 0.0f;
-        if (!Engine::Memory::TryReadValue(readAddress, v)) {
-            return false;
-        }
-        if (!IsFiniteFloat(v)) {
-            return false;
-        }
-        out = v;
-        return true;
-    }
-    case Cat::R8: {
-        double v = 0.0;
-        if (!Engine::Memory::TryReadValue(readAddress, v)) {
-            return false;
-        }
-        if (!std::isfinite(v)) {
-            return false;
-        }
-        out = static_cast<float>(v);
-        return IsFiniteFloat(out);
-    }
-    default:
-        return false;
     }
 }
 
@@ -269,9 +193,16 @@ bool FieldWatchModel::IsWatching(const ControlPanelSessionState& state,
     if (!IsWatchable(field)) {
         return false;
     }
+    return IsWatching(field, state.CaptureNavigationSnapshot(""));
+}
 
-    const NavigationSnapshot currentSnap = state.CaptureNavigationSnapshot("");
-    const std::string fieldKey           = FieldKeyFromInfo(field);
+bool FieldWatchModel::IsWatching(const Engine::FieldInfo& field,
+                                 const NavigationSnapshot& currentSnap) const {
+    if (!IsWatchable(field)) {
+        return false;
+    }
+
+    const std::string fieldKey = FieldKeyFromInfo(field);
 
     std::lock_guard<std::mutex> lock(entriesMutex);
     for (const auto& entry : entries) {
@@ -614,6 +545,83 @@ WatchedField* FieldWatchModel::FindLocked(uint32_t id) {
         }
     }
     return nullptr;
+}
+
+bool IsWatchableFieldType(const std::string& typeName) {
+    using Cat = Engine::Types::TypeCategory;
+    const Cat cat = Engine::Types::GetCategory(typeName);
+    switch (cat) {
+    case Cat::UNKNOWN:
+    case Cat::PTR:
+    case Cat::ARRAY:
+    case Cat::LIST:
+        return false;
+    default:
+        return true;
+    }
+}
+
+bool IsPlottableFieldType(const std::string& typeName) {
+    using Cat = Engine::Types::TypeCategory;
+    switch (Engine::Types::GetCategory(typeName)) {
+    case Cat::I4:
+    case Cat::I8:
+    case Cat::R4:
+    case Cat::R8:
+        return true;
+    default:
+        return false;
+    }
+}
+
+bool TrySamplePlottableValue(const std::string& typeName, uintptr_t readAddress, float& out) {
+    if (!readAddress) {
+        return false;
+    }
+
+    using Cat = Engine::Types::TypeCategory;
+    switch (Engine::Types::GetCategory(typeName)) {
+    case Cat::I4: {
+        int32_t v = 0;
+        if (!Engine::Memory::TryReadValue(readAddress, v)) {
+            return false;
+        }
+        out = static_cast<float>(v);
+        return IsFiniteFloat(out);
+    }
+    case Cat::I8: {
+        int64_t v = 0;
+        if (!Engine::Memory::TryReadValue(readAddress, v)) {
+            return false;
+        }
+        out = static_cast<float>(v);
+        return IsFiniteFloat(out);
+    }
+    case Cat::R4: {
+        float v = 0.0f;
+        if (!Engine::Memory::TryReadValue(readAddress, v)) {
+            return false;
+        }
+        if (!IsFiniteFloat(v)) {
+            return false;
+        }
+        out = v;
+        return true;
+    }
+    case Cat::R8: {
+        double v = 0.0;
+        if (!Engine::Memory::TryReadValue(readAddress, v)) {
+            return false;
+        }
+        if (!std::isfinite(v)) {
+            return false;
+        }
+        out = static_cast<float>(v);
+        return IsFiniteFloat(out);
+    }
+    default:
+        return false;
+    }
 }
 } // namespace Gui::State
 

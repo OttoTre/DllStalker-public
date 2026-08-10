@@ -12,8 +12,8 @@ namespace Gui::State
 {
 // Per-field input buffers for the Fields tab. UI-thread only (no mutex).
 // Keyed by FieldInfo::valueAddress so a buffer can never bleed across
-// unrelated rows; the cache-reset paths Clear() this whenever the active
-// class / instance changes.
+// unrelated rows. Cleared on the GUI thread from Start*Load / selection
+// resets — never from async worker threads.
 struct EditBufferStore
 {
     std::unordered_map<uintptr_t, std::array<char, 256>> buffers{};

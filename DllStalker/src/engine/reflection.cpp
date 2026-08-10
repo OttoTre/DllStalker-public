@@ -2,6 +2,8 @@
 
 #include "engine/reflection.h"
 
+#include "types/memory_guard.h"
+
 #include <cstring>
 #include <string>
 
@@ -36,7 +38,22 @@ uintptr_t Reflection::GetMethodAddress(void* image, const char* className, const
         return 0;
     }
 
-    return m_module.isIL2CPP ? *(uintptr_t*)method : (uintptr_t)m_module.exports.fnCompileMethod(method);
+    if (m_module.isIL2CPP) {
+        // Prefer il2cpp_method_get_pointer when resolved. Fallback: MethodInfo
+        // historically stores the pointer as the first field (version skew risk).
+        if (m_module.exports.fnIl2cppMethodGetPointer) {
+            return reinterpret_cast<uintptr_t>(m_module.exports.fnIl2cppMethodGetPointer(method));
+        }
+        uintptr_t addr = 0;
+        if (!Memory::TryReadValue(reinterpret_cast<uintptr_t>(method), addr)) {
+            return 0;
+        }
+        return addr;
+    }
+    if (!m_module.exports.fnCompileMethod) {
+        return 0;
+    }
+    return reinterpret_cast<uintptr_t>(m_module.exports.fnCompileMethod(method));
 }
 
 uintptr_t Reflection::GetFieldOffset(void* image, const char* className, const char* fieldName,

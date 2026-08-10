@@ -78,6 +78,10 @@ bool IsOnMainThread();
 
 // GetTickCount64() timestamp of the most recent dispatcher drain batch; 0 if never drained.
 uint64_t GetLastDrainTickMs();
+
+// Panel teardown: reject further Enqueue/TryEnqueueNoDrop and drop queued jobs.
+// Does not drain via runtime_invoke (safe from the GUI thread). Idempotent.
+void BeginShutdown();
 } // namespace MainThreadDispatcher
 } // namespace Engine::Services
 

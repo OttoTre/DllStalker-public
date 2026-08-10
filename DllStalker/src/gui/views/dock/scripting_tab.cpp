@@ -454,10 +454,8 @@ void RenderConsole(const Gui::State::ScriptModelSnapshot& snapshot, float height
 
 void RenderScriptingTab(ControlPanelSessionState& state) {
     Gui::State::ScriptModelSnapshot snapshot = state.scriptModel.Snapshot();
-    if (snapshot.modsRootUtf8.empty() && snapshot.packages.empty() && snapshot.lastActionStatus.empty()) {
-        state.scriptModel.RefreshPackages();
-        snapshot = state.scriptModel.Snapshot();
-    }
+    // Do not RefreshPackages (directory walk) from Present — too heavy.
+    // Empty list already prompts the user to click Refresh.
 
     const Gui::State::ScriptPackageInfo* selectedPackage = GetSelectedPackage(snapshot);
 

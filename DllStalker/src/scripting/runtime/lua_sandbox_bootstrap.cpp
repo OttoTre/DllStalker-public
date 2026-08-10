@@ -15,9 +15,13 @@ namespace Scripting
 {
 namespace
 {
-void OpenWhitelistedLibrary(lua_State* state, lua_CFunction opener) {
+bool OpenWhitelistedLibrary(lua_State* state, lua_CFunction opener) {
     lua_pushcfunction(state, opener);
-    lua_call(state, 0, 0);
+    if (lua_pcall(state, 0, 0, 0) != 0) {
+        lua_pop(state, 1);
+        return false;
+    }
+    return true;
 }
 
 void ApplyBlockedBaseGlobals(lua_State* state) {
@@ -44,17 +48,25 @@ DS_Status BootstrapSandboxedState(lua_State* state, const SandboxPolicy& policy)
     }
 
     if (policy.libraries.allowBase) {
-        OpenWhitelistedLibrary(state, luaopen_base);
+        if (!OpenWhitelistedLibrary(state, luaopen_base)) {
+            return DS_Status::DS_ERR_INTERNAL;
+        }
         ApplyBlockedBaseGlobals(state);
     }
     if (policy.libraries.allowTable) {
-        OpenWhitelistedLibrary(state, luaopen_table);
+        if (!OpenWhitelistedLibrary(state, luaopen_table)) {
+            return DS_Status::DS_ERR_INTERNAL;
+        }
     }
     if (policy.libraries.allowString) {
-        OpenWhitelistedLibrary(state, luaopen_string);
+        if (!OpenWhitelistedLibrary(state, luaopen_string)) {
+            return DS_Status::DS_ERR_INTERNAL;
+        }
     }
     if (policy.libraries.allowMath) {
-        OpenWhitelistedLibrary(state, luaopen_math);
+        if (!OpenWhitelistedLibrary(state, luaopen_math)) {
+            return DS_Status::DS_ERR_INTERNAL;
+        }
     }
 
     if (policy.gates.allowWhitelistedRequireOnly) {

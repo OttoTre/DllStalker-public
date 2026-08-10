@@ -8,11 +8,14 @@
 #include "gui/session_state.h"
 #include "gui/state/fields/field_path_resolver.h"
 #include "gui/state/fields/field_snapshot_model.h"
-#include "gui/views/class_label_lookup.h"
+#include "gui/views/sidebar/class_label_lookup.h"
+
+#include "services/main_thread_dispatcher.h"
 
 #include "imgui.h"
 
 #include <cstdio>
+#include <mutex>
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -34,21 +37,29 @@ enum class TwoInstanceCompareMode {
     CurrentPath = 1,
 };
 
+struct PathCompareSnapshot {
+    bool        hasPathResult = false;
+    std::string pathLabel{};
+    std::string pathValueA{};
+    std::string pathValueB{};
+    std::string pathErrorA{};
+    std::string pathErrorB{};
+    bool        pathDiffers = false;
+};
+
 struct TwoInstanceCompareState {
     int instanceIndexA = 0;
     int instanceIndexB = 1;
     int compareMode = static_cast<int>(TwoInstanceCompareMode::ClassFields);
     int collectionElementIndex = 0;
     int selectedLeafFieldIndex = 0;
+
+    // Result fields — written by compareThread, read by GUI under mutex.
+    std::mutex mutex{};
     bool hasCompareResult = false;
     std::vector<TwoInstanceCompareRow> rows{};
-    bool hasPathResult = false;
-    std::string pathLabel{};
-    std::string pathValueA{};
-    std::string pathValueB{};
-    std::string pathErrorA{};
-    std::string pathErrorB{};
-    bool pathDiffers = false;
+    PathCompareSnapshot path{};
+    std::string workerError{};
 };
 
 TwoInstanceCompareState& CompareState() {
@@ -70,18 +81,19 @@ std::string InstanceLabel(const std::vector<void*>& instances, int index) {
     return buffer;
 }
 
-void ResetResults(TwoInstanceCompareState& modal) {
+void ResetResultsLocked(TwoInstanceCompareState& modal) {
     modal.hasCompareResult = false;
-    modal.hasPathResult = false;
     modal.rows.clear();
+    modal.path = {};
+    modal.workerError.clear();
 }
 
-void BuildClassCompareRows(TwoInstanceCompareState& modal,
-                           ControlPanelSessionState& state,
-                           void* instanceA,
-                           void* instanceB) {
-    const auto fieldsA = state.dumper->GetRawFields(state.selectedClass, instanceA);
-    const auto fieldsB = state.dumper->GetRawFields(state.selectedClass, instanceB);
+std::vector<TwoInstanceCompareRow> BuildClassCompareRows(Engine::UnityDumper& dumper,
+                                                         void* klass,
+                                                         void* instanceA,
+                                                         void* instanceB) {
+    const auto fieldsA = dumper.GetRawFields(klass, instanceA);
+    const auto fieldsB = dumper.GetRawFields(klass, instanceB);
 
     std::unordered_map<std::string, Engine::FieldInfo> byNameB;
     byNameB.reserve(fieldsB.size());
@@ -89,7 +101,8 @@ void BuildClassCompareRows(TwoInstanceCompareState& modal,
         byNameB[field.name] = field;
     }
 
-    modal.rows.reserve(fieldsA.size() + byNameB.size());
+    std::vector<TwoInstanceCompareRow> rows;
+    rows.reserve(fieldsA.size() + byNameB.size());
     std::unordered_map<std::string, bool> seen;
 
     for (const auto& fieldA : fieldsA) {
@@ -108,7 +121,7 @@ void BuildClassCompareRows(TwoInstanceCompareState& modal,
             row.valueB = itB->second.valueDisplay.empty() ? std::string("-") : itB->second.valueDisplay;
             row.differs = row.valueA != row.valueB;
         }
-        modal.rows.push_back(std::move(row));
+        rows.push_back(std::move(row));
     }
 
     for (const auto& fieldB : fieldsB) {
@@ -121,50 +134,128 @@ void BuildClassCompareRows(TwoInstanceCompareState& modal,
         row.valueA = "-";
         row.valueB = fieldB.valueDisplay.empty() ? std::string("-") : fieldB.valueDisplay;
         row.differs = true;
-        modal.rows.push_back(std::move(row));
+        rows.push_back(std::move(row));
     }
 
-    modal.hasCompareResult = true;
+    return rows;
 }
 
-void BuildPathCompareRows(TwoInstanceCompareState& modal,
-                          ControlPanelSessionState& state,
-                          const InspectorCache& inspectorSnapshot,
-                          bool inCollectionView,
-                          void* instanceA,
-                          void* instanceB) {
-    const auto steps = State::BuildFieldPathSteps(state.walker.stack);
-    std::string leafFieldName{};
-    if (!inCollectionView && !inspectorSnapshot.fields.empty()
-        && modal.selectedLeafFieldIndex >= 0
-        && modal.selectedLeafFieldIndex < static_cast<int>(inspectorSnapshot.fields.size())) {
-        leafFieldName = inspectorSnapshot.fields[static_cast<size_t>(modal.selectedLeafFieldIndex)].name;
-    }
-
-    const int collectionIndex = inCollectionView ? modal.collectionElementIndex : -1;
-    modal.pathLabel = State::BuildFieldPathLabel(state.walker.stack, collectionIndex);
+PathCompareSnapshot BuildPathCompareSnapshot(Engine::UnityDumper& dumper,
+                                             void* sidebarKlass,
+                                             void* instanceA,
+                                             void* instanceB,
+                                             const std::vector<State::FieldPathStep>& steps,
+                                             int collectionIndex,
+                                             const std::string& leafFieldName,
+                                             const std::string& pathLabel) {
+    PathCompareSnapshot out{};
+    out.pathLabel = pathLabel;
 
     const State::FieldPathCompareResult resultA =
-        State::ResolvePathValue(*state.dumper, state.selectedClass, instanceA, steps, collectionIndex, leafFieldName);
+        State::ResolvePathValue(dumper, sidebarKlass, instanceA, steps, collectionIndex, leafFieldName);
     const State::FieldPathCompareResult resultB =
-        State::ResolvePathValue(*state.dumper, state.selectedClass, instanceB, steps, collectionIndex, leafFieldName);
+        State::ResolvePathValue(dumper, sidebarKlass, instanceB, steps, collectionIndex, leafFieldName);
 
-    modal.pathErrorA.clear();
-    modal.pathErrorB.clear();
-    modal.pathValueA = resultA.ok
+    out.pathValueA = resultA.ok
         ? (resultA.valueDisplay.empty() ? std::string("-") : resultA.valueDisplay)
         : std::string("-");
-    modal.pathValueB = resultB.ok
+    out.pathValueB = resultB.ok
         ? (resultB.valueDisplay.empty() ? std::string("-") : resultB.valueDisplay)
         : std::string("-");
     if (!resultA.ok) {
-        modal.pathErrorA = resultA.error;
+        out.pathErrorA = resultA.error;
     }
     if (!resultB.ok) {
-        modal.pathErrorB = resultB.error;
+        out.pathErrorB = resultB.error;
     }
-    modal.pathDiffers = resultA.ok && resultB.ok && modal.pathValueA != modal.pathValueB;
-    modal.hasPathResult = true;
+    out.pathDiffers = resultA.ok && resultB.ok && out.pathValueA != out.pathValueB;
+    out.hasPathResult = true;
+    return out;
+}
+
+void StartAsyncCompare(ControlPanelSessionState& state,
+                       TwoInstanceCompareState& modal,
+                       bool classMode,
+                       void* instanceA,
+                       void* instanceB,
+                       const InspectorCache& inspectorSnapshot,
+                       bool inCollectionView) {
+    auto dumperRef = state.dumper;
+    void* const klass = state.selectedClass;
+    if (!dumperRef || !klass || !instanceA || !instanceB) {
+        return;
+    }
+
+    std::vector<State::FieldPathStep> steps;
+    std::string leafFieldName{};
+    std::string pathLabel{};
+    int collectionIndex = -1;
+    if (!classMode) {
+        steps = State::BuildFieldPathSteps(state.walker.stack);
+        if (!inCollectionView && !inspectorSnapshot.fields.empty()
+            && modal.selectedLeafFieldIndex >= 0
+            && modal.selectedLeafFieldIndex < static_cast<int>(inspectorSnapshot.fields.size())) {
+            leafFieldName = inspectorSnapshot.fields[static_cast<size_t>(modal.selectedLeafFieldIndex)].name;
+        }
+        collectionIndex = inCollectionView ? modal.collectionElementIndex : -1;
+        pathLabel = State::BuildFieldPathLabel(state.walker.stack, collectionIndex);
+    }
+
+    {
+        std::lock_guard<std::mutex> lock(modal.mutex);
+        ResetResultsLocked(modal);
+    }
+
+    state.loaders.compareThread = {};
+    state.loaders.compareInProgress.store(true);
+
+    TwoInstanceCompareState* const modalPtr = &modal;
+    state.loaders.compareThread = std::jthread(
+        [dumperRef, klass, instanceA, instanceB, classMode, steps = std::move(steps),
+         leafFieldName = std::move(leafFieldName), pathLabel = std::move(pathLabel),
+         collectionIndex, modalPtr,
+         &inProgress = state.loaders.compareInProgress](std::stop_token stopToken) {
+            Engine::Services::MainThreadDispatcher::TagCurrentThreadAsOurs();
+            try {
+                if (classMode) {
+                    auto rows = BuildClassCompareRows(*dumperRef, klass, instanceA, instanceB);
+                    if (stopToken.stop_requested()) {
+                        inProgress.store(false);
+                        return;
+                    }
+                    std::lock_guard<std::mutex> lock(modalPtr->mutex);
+                    modalPtr->rows = std::move(rows);
+                    modalPtr->hasCompareResult = true;
+                    modalPtr->path = {};
+                    modalPtr->workerError.clear();
+                }
+                else {
+                    auto path = BuildPathCompareSnapshot(
+                        *dumperRef, klass, instanceA, instanceB, steps, collectionIndex,
+                        leafFieldName, pathLabel);
+                    if (stopToken.stop_requested()) {
+                        inProgress.store(false);
+                        return;
+                    }
+                    std::lock_guard<std::mutex> lock(modalPtr->mutex);
+                    modalPtr->path = std::move(path);
+                    modalPtr->hasCompareResult = false;
+                    modalPtr->rows.clear();
+                    modalPtr->workerError.clear();
+                }
+            }
+            catch (const std::exception& e) {
+                std::lock_guard<std::mutex> lock(modalPtr->mutex);
+                ResetResultsLocked(*modalPtr);
+                modalPtr->workerError = e.what();
+            }
+            catch (...) {
+                std::lock_guard<std::mutex> lock(modalPtr->mutex);
+                ResetResultsLocked(*modalPtr);
+                modalPtr->workerError = "Compare failed (unknown error)";
+            }
+            inProgress.store(false);
+        });
 }
 } // namespace
 
@@ -172,9 +263,10 @@ void RenderTwoInstanceComparePanel(ControlPanelSessionState& state,
                                    const InspectorCache& inspectorSnapshot) {
     auto& modal = CompareState();
 
-    const std::vector<void*>& instances = state.inspector.rootInstanceCandidates;
+    const std::vector<void*> instances = state.inspector.SnapshotRootInstanceCandidates();
     const bool inCollectionView = !state.walker.stack.empty() && state.walker.stack.back().isCollection;
     const bool pathContextAvailable = state.walker.stack.size() > 1;
+    const bool compareBusy = state.loaders.compareInProgress.load(std::memory_order_relaxed);
 
     if (instances.size() < 2 || !state.selectedClass || !state.dumper) {
         ImGui::TextDisabled(
@@ -223,10 +315,10 @@ void RenderTwoInstanceComparePanel(ControlPanelSessionState& state,
     }
 
     if (modal.compareMode == pathMode && pathContextAvailable) {
-        modal.pathLabel = State::BuildFieldPathLabel(
-            state.walker.stack,
-            inCollectionView ? modal.collectionElementIndex : -1);
-        ImGui::TextDisabled("Path: %s", modal.pathLabel.c_str());
+        ImGui::TextDisabled("Path: %s",
+            State::BuildFieldPathLabel(
+                state.walker.stack,
+                inCollectionView ? modal.collectionElementIndex : -1).c_str());
 
         if (inCollectionView) {
             const int elementCount = static_cast<int>(inspectorSnapshot.fields.size());
@@ -298,30 +390,50 @@ void RenderTwoInstanceComparePanel(ControlPanelSessionState& state,
     }
 
     ImGui::SameLine();
-    const bool runEnabled = modal.instanceIndexA != modal.instanceIndexB
+    const bool runEnabled = !compareBusy
+        && modal.instanceIndexA != modal.instanceIndexB
         && (modal.compareMode != pathMode || (pathContextAvailable && (!inCollectionView || !inspectorSnapshot.fields.empty())));
 
     if (!runEnabled) {
         ImGui::BeginDisabled();
     }
     if (UiTheme::PrimaryButton("Run compare")) {
-        ResetResults(modal);
         if (modal.instanceIndexA != modal.instanceIndexB) {
             void* const instanceA = instances[static_cast<size_t>(modal.instanceIndexA)];
             void* const instanceB = instances[static_cast<size_t>(modal.instanceIndexB)];
-            if (modal.compareMode == classMode) {
-                BuildClassCompareRows(modal, state, instanceA, instanceB);
-            }
-            else {
-                BuildPathCompareRows(modal, state, inspectorSnapshot, inCollectionView, instanceA, instanceB);
-            }
+            StartAsyncCompare(state, modal, modal.compareMode == classMode,
+                              instanceA, instanceB, inspectorSnapshot, inCollectionView);
         }
     }
     if (!runEnabled) {
         ImGui::EndDisabled();
     }
 
-    if (modal.compareMode == classMode && modal.hasCompareResult && !modal.rows.empty()) {
+    if (compareBusy) {
+        ImGui::SameLine();
+        ImGui::TextDisabled("Comparing...");
+    }
+
+    bool hasCompareResult = false;
+    bool hasPathResult = false;
+    std::vector<TwoInstanceCompareRow> rowsCopy;
+    PathCompareSnapshot pathCopy{};
+    std::string workerError{};
+    {
+        std::lock_guard<std::mutex> lock(modal.mutex);
+        hasCompareResult = modal.hasCompareResult;
+        hasPathResult = modal.path.hasPathResult;
+        rowsCopy = modal.rows;
+        pathCopy = modal.path;
+        workerError = modal.workerError;
+    }
+
+    if (!workerError.empty()) {
+        ImGui::Separator();
+        UiTheme::DrawErrorText(workerError.c_str());
+    }
+
+    if (modal.compareMode == classMode && hasCompareResult && !rowsCopy.empty()) {
         ImGui::Separator();
         if (ImGui::BeginChild("TwoInstanceCompareResults", ImVec2(0, 0), false)) {
             if (ImGui::BeginTable("TwoInstanceCompareTable", 4,
@@ -334,7 +446,7 @@ void RenderTwoInstanceComparePanel(ControlPanelSessionState& state,
                 ImGui::TableSetupColumn("Type", ImGuiTableColumnFlags_WidthStretch, 0.16f);
                 ImGui::TableHeadersRow();
 
-                for (const auto& row : modal.rows) {
+                for (const auto& row : rowsCopy) {
                     ImGui::TableNextRow();
                     if (row.differs) {
                         ImGui::TableSetBgColor(
@@ -355,7 +467,7 @@ void RenderTwoInstanceComparePanel(ControlPanelSessionState& state,
         }
         ImGui::EndChild();
     }
-    else if (modal.compareMode == pathMode && modal.hasPathResult) {
+    else if (modal.compareMode == pathMode && hasPathResult) {
         ImGui::Separator();
         if (ImGui::BeginTable("TwoInstancePathCompare", 2,
                               ImGuiTableFlags_Borders | ImGuiTableFlags_RowBg
@@ -384,8 +496,8 @@ void RenderTwoInstanceComparePanel(ControlPanelSessionState& state,
                 }
             };
 
-            drawPathRow("A", modal.pathValueA, modal.pathErrorA, modal.pathDiffers);
-            drawPathRow("B", modal.pathValueB, modal.pathErrorB, modal.pathDiffers);
+            drawPathRow("A", pathCopy.pathValueA, pathCopy.pathErrorA, pathCopy.pathDiffers);
+            drawPathRow("B", pathCopy.pathValueB, pathCopy.pathErrorB, pathCopy.pathDiffers);
             ImGui::EndTable();
         }
     }

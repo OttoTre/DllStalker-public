@@ -15,6 +15,7 @@ struct ControlPanelSessionState;
 
 namespace Gui::AppShell
 {
+void TickBeforePaint(ControlPanelSessionState& state);
 void BeginControlPanelFrame(HWND hwnd);
 void RenderControlPanelContent(ControlPanelSessionState& state);
 

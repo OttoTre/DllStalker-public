@@ -9,6 +9,7 @@ extern "C" {
 
 #include <cstdio>
 #include <cmath>
+#include <limits>
 #include <vector>
 
 #include "scripting/abi/script_abi.h"
@@ -165,10 +166,24 @@ void PushValue(lua_State* state, const ScriptValue& value) {
         lua_pushboolean(state, value.booleanValue ? 1 : 0);
         break;
     case ScriptValueKind::Integer:
-        lua_pushnumber(state, static_cast<lua_Number>(value.integerValue));
+        // Prefer integer when it fits lua_Integer; else string for full fidelity.
+        if (value.integerValue >= static_cast<int64_t>((std::numeric_limits<lua_Integer>::min)())
+            && value.integerValue <= static_cast<int64_t>((std::numeric_limits<lua_Integer>::max)())) {
+            lua_pushinteger(state, static_cast<lua_Integer>(value.integerValue));
+        }
+        else {
+            const std::string text = std::to_string(value.integerValue);
+            lua_pushlstring(state, text.data(), text.size());
+        }
         break;
     case ScriptValueKind::Unsigned:
-        lua_pushnumber(state, static_cast<lua_Number>(value.unsignedValue));
+        if (value.unsignedValue <= static_cast<uint64_t>((std::numeric_limits<lua_Integer>::max)())) {
+            lua_pushinteger(state, static_cast<lua_Integer>(value.unsignedValue));
+        }
+        else {
+            const std::string text = std::to_string(value.unsignedValue);
+            lua_pushlstring(state, text.data(), text.size());
+        }
         break;
     case ScriptValueKind::Number:
         lua_pushnumber(state, static_cast<lua_Number>(value.numberValue));
@@ -371,7 +386,7 @@ void CreateMetatable(lua_State* state,
         lua_setfield(state, -2, "__tostring");
 
         if (methods != nullptr) {
-            luaL_register(state, nullptr, methods);
+            luaL_setfuncs(state, methods, 0);
             if (indexSelf) {
                 lua_pushvalue(state, -1);
                 lua_setfield(state, -2, "__index");

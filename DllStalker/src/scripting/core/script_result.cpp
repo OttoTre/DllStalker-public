@@ -30,6 +30,7 @@ const char* StatusToString(DS_Status status) noexcept {
     case DS_Status::DS_ERR_UNSUPPORTED_TYPE: return "DS_ERR_UNSUPPORTED_TYPE";
     case DS_Status::DS_ERR_MANAGED_EXCEPTION: return "DS_ERR_MANAGED_EXCEPTION";
     case DS_Status::DS_ERR_STRING_TOO_LONG: return "DS_ERR_STRING_TOO_LONG";
+    case DS_Status::DS_ERR_INTERNAL: return "DS_ERR_INTERNAL";
     default: return "DS_ERR_UNKNOWN";
     }
 }

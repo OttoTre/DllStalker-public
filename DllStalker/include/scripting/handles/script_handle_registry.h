@@ -64,6 +64,7 @@ private:
 
     mutable std::mutex mutex_{};
     std::vector<HandleRegistryEntry> entries_{};
+    std::vector<uint32_t> freeIndices_{};
     uint32_t nextGeneration_ = 1;
 };
 

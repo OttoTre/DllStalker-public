@@ -8,17 +8,17 @@ namespace Gui::State
 {
 void ClassCacheModel::Clear() {
     std::lock_guard<std::mutex> lock(mutex);
-    data.clear();
+    data = std::make_shared<const std::vector<Engine::ClassInfo>>();
 }
 
-std::vector<Engine::ClassInfo> ClassCacheModel::Snapshot() const {
+std::shared_ptr<const std::vector<Engine::ClassInfo>> ClassCacheModel::Snapshot() const {
     std::lock_guard<std::mutex> lock(mutex);
     return data;
 }
 
 void ClassCacheModel::Replace(std::vector<Engine::ClassInfo> v) {
     std::lock_guard<std::mutex> lock(mutex);
-    data = std::move(v);
+    data = std::make_shared<const std::vector<Engine::ClassInfo>>(std::move(v));
 }
 } // namespace Gui::State
 

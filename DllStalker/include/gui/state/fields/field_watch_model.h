@@ -80,7 +80,9 @@ struct FieldWatchModel {
 
     bool IsWatchable(const Engine::FieldInfo& field) const;
 
+    // Prefer the snap overload in table paint (capture once per frame).
     bool IsWatching(const ControlPanelSessionState& state, const Engine::FieldInfo& field) const;
+    bool IsWatching(const Engine::FieldInfo& field, const NavigationSnapshot& currentSnap) const;
 
     enum class ToggleResult { Added, Removed, RejectedCap, RejectedType };
     ToggleResult Toggle(ControlPanelSessionState& state, const Engine::FieldInfo& field);

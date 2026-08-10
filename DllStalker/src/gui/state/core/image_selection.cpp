@@ -22,9 +22,13 @@ void ControlPanelSessionState::SelectImage(const Engine::ImageInfo& img, bool re
 
     ClearClassCache();
     ClearInspectorCache();
+    if (dumper) {
+        dumper->ClearValueSearchSchemas();
+    }
 
     // StartClassLoad cancels any in-flight class worker via std::jthread
-    // move-assignment, so callers don't need explicit join helpers.
+    // move-assignment. ClearInspectorCache already joins inspector/fields/
+    // instance-search writers, so callers don't need extra join helpers.
     if (selectedImage && dumper) {
         StartClassLoad(dumper, selectedImage);
     }

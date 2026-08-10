@@ -31,6 +31,7 @@ enum class DS_Status : int32_t {
     DS_ERR_UNSUPPORTED_TYPE,
     DS_ERR_MANAGED_EXCEPTION,
     DS_ERR_STRING_TOO_LONG,
+    DS_ERR_INTERNAL,
 };
 
 inline bool IsOk(DS_Status status) noexcept {

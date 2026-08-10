@@ -10,23 +10,32 @@
 
 #include "imgui.h"
 
+#include <cctype>
 #include <cstdio>
 #include <cstdint>
+#include <string>
 #include <vector>
 
 namespace Gui::Views
 {
 bool IsEditableFieldType(const Engine::FieldInfo& field) {
+    // Enums: FieldInfo::isEnum (not GetCategory — dotted enum type names → PTR).
     if (field.isEnum) {
         return true;
     }
     using Cat = Engine::Types::TypeCategory;
     const Cat cat = Engine::Types::GetCategory(field.type);
-    return cat != Cat::UNKNOWN
-        && cat != Cat::PTR
-        && cat != Cat::ARRAY
-        && cat != Cat::LIST
-        && cat != Cat::VEC3;
+    switch (cat) {
+    case Cat::I1: case Cat::I2: case Cat::I4: case Cat::I8:
+    case Cat::U1: case Cat::U2: case Cat::U4: case Cat::U8:
+    case Cat::R4: case Cat::R8:
+    case Cat::BOOLEAN: case Cat::STRING:
+    case Cat::VEC2: case Cat::VEC3: case Cat::VEC4:
+    case Cat::QUAT: case Cat::COLOR: case Cat::COLOR32: case Cat::RECT:
+        return true;
+    default:
+        return false;
+    }
 }
 
 bool TryParseFieldDisplayInt64(const std::string& text, int64_t& out) {
@@ -47,6 +56,34 @@ bool TryParseFieldDisplayInt64(const std::string& text, int64_t& out) {
         return false;
     }
 }
+
+namespace {
+// Matches value_writer bool tokens (case-insensitive): true/1/yes or false/0/no.
+bool TryParseFieldDisplayBool(const std::string& text, bool& out) {
+    if (text.empty() || text == "-" || text == "??") {
+        return false;
+    }
+    std::string low = text;
+    while (!low.empty() && std::isspace(static_cast<unsigned char>(low.front()))) {
+        low.erase(low.begin());
+    }
+    while (!low.empty() && std::isspace(static_cast<unsigned char>(low.back()))) {
+        low.pop_back();
+    }
+    for (char& c : low) {
+        c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+    }
+    if (low == "true" || low == "1" || low == "yes") {
+        out = true;
+        return true;
+    }
+    if (low == "false" || low == "0" || low == "no") {
+        out = false;
+        return true;
+    }
+    return false;
+}
+} // namespace
 
 void RenderScalarFieldEditCell(const Engine::FieldInfo& field,
                                ControlPanelSessionState& state,
@@ -91,6 +128,44 @@ void RenderScalarFieldEditCell(const Engine::FieldInfo& field,
             snprintf(editStatus, 128, "Edit failed: %s", error.empty() ? "Unknown error" : error.c_str());
             editStatusAtSeconds = static_cast<float>(ImGui::GetTime());
         }
+    }
+    ImGui::PopID();
+}
+
+void RenderBoolFieldEditCell(const Engine::FieldInfo& field,
+                             ControlPanelSessionState& state,
+                             size_t fieldIndex,
+                             char editStatus[],
+                             float& editStatusAtSeconds,
+                             const std::function<void(bool)>& doRefresh) {
+    bool checked = false;
+    const bool readable = TryParseFieldDisplayBool(field.valueDisplay, checked);
+    // Unreadable / "??" / unknown tokens: unchecked + disabled (no accidental write).
+
+    ImGui::PushID(static_cast<int>(fieldIndex) + 10000);
+    if (!readable) {
+        ImGui::BeginDisabled();
+    }
+    if (ImGui::Checkbox("##BoolField", &checked)) {
+        const char* payload = checked ? "true" : "false";
+        std::string error;
+        if (state.dumper->SetFieldValue(field, payload, &error)) {
+            snprintf(editStatus, 128, "Applied: %s", field.name.c_str());
+            editStatusAtSeconds = static_cast<float>(ImGui::GetTime());
+            State::FieldAuditPayload audit{};
+            audit.fieldName       = field.name;
+            audit.fieldType       = field.type;
+            audit.newValueDisplay = payload;
+            state.RecordFieldAudit(audit);
+            doRefresh(false);
+        }
+        else {
+            snprintf(editStatus, 128, "Edit failed: %s", error.empty() ? "Unknown error" : error.c_str());
+            editStatusAtSeconds = static_cast<float>(ImGui::GetTime());
+        }
+    }
+    if (!readable) {
+        ImGui::EndDisabled();
     }
     ImGui::PopID();
 }

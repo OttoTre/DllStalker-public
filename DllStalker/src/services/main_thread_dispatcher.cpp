@@ -50,6 +50,7 @@ std::mutex              g_queueMutex;
 std::deque<Job>         g_queue;
 std::atomic<uint32_t>   g_droppedJobCount{0};
 std::atomic<uint64_t>   g_lastDrainTickMs{0};
+std::atomic<bool>       g_shuttingDown{false};
 
 // This wrapper uses SEH to survive access violations from queued jobs.
 // Regular C++ catch blocks do not catch AV under /EHsc.
@@ -144,8 +145,10 @@ void TagCurrentThreadAsOurs() {
 
 bool Enqueue(Job job) {
     if (!job) return false;
+    if (g_shuttingDown.load(std::memory_order_acquire)) return false;
 
     std::lock_guard<std::mutex> lock(g_queueMutex);
+    if (g_shuttingDown.load(std::memory_order_relaxed)) return false;
     if (g_queue.size() >= kMaxQueueDepth) {
         // Drop the oldest to keep the queue bounded; prevents click-spam
         // from forcing unbounded memory growth or starving newer requests.
@@ -161,8 +164,10 @@ bool Enqueue(Job job) {
 
 bool TryEnqueueNoDrop(Job job) {
     if (!job) return false;
+    if (g_shuttingDown.load(std::memory_order_acquire)) return false;
 
     std::lock_guard<std::mutex> lock(g_queueMutex);
+    if (g_shuttingDown.load(std::memory_order_relaxed)) return false;
     if (g_queue.size() >= kMaxQueueDepth) {
         return false;
     }
@@ -208,6 +213,12 @@ bool IsOnMainThread() {
 
 uint64_t GetLastDrainTickMs() {
     return g_lastDrainTickMs.load(std::memory_order_relaxed);
+}
+
+void BeginShutdown() {
+    g_shuttingDown.store(true, std::memory_order_release);
+    std::lock_guard<std::mutex> lock(g_queueMutex);
+    g_queue.clear();
 }
 } // namespace Engine::Services::MainThreadDispatcher
 

@@ -7,6 +7,7 @@
 #include <cstdint>
 #include <memory>
 #include <string>
+#include <unordered_map>
 #include <vector>
 
 #include "unity_dumper.h"
@@ -18,6 +19,7 @@
 #include "gui/state/core/image_cache_model.h"
 #include "gui/state/fields/field_snapshot_model.h"
 #include "gui/state/fields/field_watch_model.h"
+#include "gui/state/fields/value_search_model.h"
 #include "gui/state/runtime/call_log_model.h"
 #include "gui/state/history/inspector_bookmarks_model.h"
 #include "gui/state/history/inspector_history_model.h"
@@ -52,11 +54,15 @@ struct ControlPanelSessionState {
     State::EditBufferStore     editBufferStore{};
     State::EnumLiteralCache    enumLiteralCache{};
     State::WalkerController    walker{};
-    State::InvokeRequestQueue  invokeQueue{};
+    // Heap-owned so MainThreadDispatcher invoke jobs can capture a shared_ptr
+    // sink and finish safely after ControlPanelSessionState is destroyed.
+    std::shared_ptr<State::InvokeRequestQueue> invokeQueue =
+        std::make_shared<State::InvokeRequestQueue>();
     State::InspectorHistoryModel         history{};
     State::InspectorBookmarksModel       bookmarks{};
     State::FieldSnapshotModel            fieldSnapshot{};
     State::FieldWatchModel               fieldWatch{};
+    State::ValueSearchModel              valueSearch{};
     State::CallLogModel                  callLog{};
     State::InspectorNavigationFeedback   navigationFeedback{};
     State::TransformModel                transformModel{};
@@ -71,6 +77,10 @@ struct ControlPanelSessionState {
     char classFilterBuffer[128]  = "";
     char methodsFilterBuffer[128] = "";
     char fieldsFilterBuffer[128]  = "";
+    char valueSearchNameBuffer[128]  = "";
+    char valueSearchValueBuffer[128] = "";
+    // 0 = Classes, 1 = Search (sidebar browser mode).
+    int  sidebarBrowserMode = 0;
     bool   fieldsAutoRefresh         = false;
     int    fieldsRefreshIntervalIndex = 1;
     double fieldsLastRefreshAt        = 0.0;
@@ -79,8 +89,17 @@ struct ControlPanelSessionState {
     // Cleared after one attempt; Refresh Images re-arms when nothing is selected.
     bool pendingDefaultImageSelection = true;
 
+    // Fields [T] probe cache: valueAddress → show Transform jump.
+    // Cleared on inspector/fields refresh; not walked on every Present row.
+    std::unordered_map<uintptr_t, bool> transformJumpByValueAddress{};
+
     std::string cachedLowerFilter{};
     std::string cachedOriginalFilter{};
+    // Class Browser: applied filter is debounced; buffer stays live while typing.
+    double classFilterLastEditAt = 0.0;
+    std::vector<size_t> classFilterVisibleIndices{};
+    const void* classFilterVisibleCachePtr = nullptr;
+    size_t classFilterVisibleCacheCount = 0;
     std::string methodsCachedOriginalFilter{};
     std::string methodsCachedLowerFilter{};
     std::string fieldsCachedOriginalFilter{};
@@ -89,10 +108,23 @@ struct ControlPanelSessionState {
     // ---- Worker bundle (declared after data so jthreads join cleanly) -----
     State::AsyncLoaderSet loaders{};
 
+    // BeginShutdown once-guard (GUI thread only).
+    bool shutdownBegun = false;
+
+    // ---- Present tick (GUI thread, before paint) ---------------------------
+    // Auto-loads, history latches, and invoke-audit drain (not inside Render*).
+    void TickPresentSideEffects();
+
+    // ---- Teardown (GUI thread, before jthread joins in destructor) ---------
+    // Best-effort cancel loaders/Search/scripts and reject MainThreadDispatcher
+    // work. Idempotent; call once when leaving RunControlPanelMainLoop.
+    void BeginShutdown();
+
     // ---- Cache reset helpers -----------------------------------------------
     void ClearImageCache();
     void ClearClassCache();
     void ClearInspectorCache();
+    void ClearTransformJumpCache();
 
     // ---- Async load entry points -------------------------------------------
     void StartImageLoad(const std::shared_ptr<Engine::UnityDumper>& dumperRef);
@@ -106,10 +138,20 @@ struct ControlPanelSessionState {
                              const Engine::FieldInfo& sourceField,
                              void* ownerKlass,
                              void* ownerInstance);
+    // Cancel in-flight Analysis Compare worker (GUI-thread; joins prior jthread).
+    void CancelInstanceCompare();
+    // Join all workers that write inspector.cache / root candidates.
+    void CancelInspectorCacheWriters();
+    void CancelValueSearch();
+    void StartValueSearch();
+    void StartValueDrill();
 
     // ---- Recursive Memory Walker -------------------------------------------
     bool NavigateIntoPointer(uintptr_t fieldValueAddress, std::string fieldLabel);
     bool NavigateIntoCollection(const Engine::FieldInfo& field);
+    // Search hit → walker path (collection / Deep / PTR-follow). Resets stack.
+    // Unresolvable path falls back to load-at-root instance.
+    bool NavigateToValueSearchHit(const Engine::ValueSearchHit& hit);
     void NavigateBackTo(size_t breadcrumbIndex);
     void ResetNavigationStack();
     void EnsureRootBreadcrumb();
@@ -121,9 +163,9 @@ struct ControlPanelSessionState {
 
     // ---- Selection / snapshot accessors ------------------------------------
     void SelectInstanceByIndex(int index);
-    std::vector<Engine::ImageInfo> GetImageCacheSnapshot() const;
-    std::vector<Engine::ClassInfo> GetClassCacheSnapshot() const;
-    InspectorCache GetInspectorSnapshot();
+    std::shared_ptr<const std::vector<Engine::ImageInfo>> GetImageCacheSnapshot() const;
+    std::shared_ptr<const std::vector<Engine::ClassInfo>> GetClassCacheSnapshot() const;
+    std::shared_ptr<const InspectorCache> GetInspectorSnapshot();
 
     // ---- Image selection ---------------------------------------------------
     // Shared by the manual combo click in image_picker.cpp and the

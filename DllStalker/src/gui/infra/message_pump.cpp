@@ -57,10 +57,7 @@ bool WaitForRenderTriggerIfNeeded(bool& requestRender, bool hadInputMessage, DWO
         return false;
     }
 
-    /* GPU optimization: when idle (no input, no UI changes), wait for either a
-       message or the caller-supplied timeout. The timeout path is what lets the
-       Fields tab "Auto refresh" feature tick while the panel has no input — a
-       plain WaitMessage() would block until the user moved the mouse. */
+    // Idle: wait for a message or timeout (Auto refresh / periodic ticks need the timeout).
     const DWORD result = MsgWaitForMultipleObjectsEx(0, nullptr, idleWakeMs, QS_ALLINPUT, MWMO_INPUTAVAILABLE);
     if (result == WAIT_TIMEOUT) {
         // Idle tick: drop through to render so periodic UI logic can run.
@@ -85,11 +82,12 @@ void UpdateFramePacing(bool hadInputMessage, bool& requestRender, std::chrono::s
     requestRender = false;
     const auto frameEnd = std::chrono::steady_clock::now();
 
+    // Input: ~kInputFrameBudgetMs floor. Idle / periodic: ~kIdleFrameBudgetMs.
     if (hadInputMessage) {
-        nextFrameAt = frameEnd + std::chrono::milliseconds(16);
+        nextFrameAt = frameEnd + std::chrono::milliseconds(kInputFrameBudgetMs);
     }
     else {
-        nextFrameAt = frameEnd + std::chrono::milliseconds(100);
+        nextFrameAt = frameEnd + std::chrono::milliseconds(kIdleFrameBudgetMs);
     }
 }
 

@@ -33,6 +33,109 @@ bool ReadManagedPointer(uintptr_t address, void*& outInstance) {
     outInstance = reinterpret_cast<void*>(raw);
     return true;
 }
+
+enum class SegmentOutcome { Continue, Finished };
+
+SegmentOutcome ResolveCollectionSegment(Engine::UnityDumper& dumper,
+                                        const FieldPathStep& step,
+                                        bool isLastStep,
+                                        int collectionLeafIndex,
+                                        void* currentKlass,
+                                        void* currentInstance,
+                                        FieldPathCompareResult& result) {
+    const auto fields = dumper.GetRawFields(currentKlass, currentInstance);
+    const Engine::FieldInfo* field = FindFieldByName(fields, step.fieldName);
+    if (!field) {
+        result.error = "Collection field not found: " + step.fieldName;
+        return SegmentOutcome::Finished;
+    }
+
+    auto rows = dumper.GetCollectionView(*field);
+    if (rows.empty()) {
+        result.error = "Collection is empty or unreadable: " + step.fieldName;
+        return SegmentOutcome::Finished;
+    }
+
+    if (isLastStep) {
+        if (collectionLeafIndex < 0
+            || collectionLeafIndex >= static_cast<int>(rows.size())) {
+            result.error = "Element index out of range.";
+            return SegmentOutcome::Finished;
+        }
+        result.valueDisplay = rows[static_cast<size_t>(collectionLeafIndex)].valueDisplay;
+        result.ok             = true;
+        return SegmentOutcome::Finished;
+    }
+
+    result.error = "Collection step is only supported as the final path segment in v1.";
+    return SegmentOutcome::Finished;
+}
+
+SegmentOutcome ResolveFieldSegment(Engine::UnityDumper& dumper,
+                                   const FieldPathStep& step,
+                                   bool isLastStep,
+                                   const std::string& leafFieldName,
+                                   void*& currentKlass,
+                                   void*& currentInstance,
+                                   FieldPathCompareResult& result) {
+    const auto fields = dumper.GetRawFields(currentKlass, currentInstance);
+    const Engine::FieldInfo* field = FindFieldByName(fields, step.fieldName);
+    if (!field || !field->hasValue || field->valueAddress == 0) {
+        result.error = "Field not found or unreadable: " + step.fieldName;
+        return SegmentOutcome::Finished;
+    }
+
+    const auto fieldCategory = Engine::Types::GetCategory(field->type);
+    const bool isPointerField =
+        fieldCategory == Engine::Types::TypeCategory::PTR
+        || fieldCategory == Engine::Types::TypeCategory::ARRAY
+        || fieldCategory == Engine::Types::TypeCategory::LIST;
+
+    if (isLastStep && !isPointerField) {
+        result.valueDisplay  = field->valueDisplay;
+        result.leafFieldName = field->name;
+        result.ok            = true;
+        return SegmentOutcome::Finished;
+    }
+
+    if (isLastStep && isPointerField && leafFieldName.empty()) {
+        result.error = "Select a member field for the current object.";
+        return SegmentOutcome::Finished;
+    }
+
+    void* nestedInstance = nullptr;
+    if (!ReadManagedPointer(field->valueAddress, nestedInstance)) {
+        result.error = "Field is not a readable managed reference: " + step.fieldName;
+        return SegmentOutcome::Finished;
+    }
+
+    void* nestedKlass = nullptr;
+    if (dumper.TryGetClassNameFromInstance(nestedInstance, &nestedKlass).empty() || !nestedKlass) {
+        result.error = "Nested instance is no longer valid: " + step.fieldName;
+        return SegmentOutcome::Finished;
+    }
+
+    currentInstance = nestedInstance;
+    currentKlass    = nestedKlass;
+    return SegmentOutcome::Continue;
+}
+
+bool ResolveLeafMember(Engine::UnityDumper& dumper,
+                       void* currentKlass,
+                       void* currentInstance,
+                       const std::string& leafFieldName,
+                       FieldPathCompareResult& result) {
+    const auto fields = dumper.GetRawFields(currentKlass, currentInstance);
+    const Engine::FieldInfo* field = FindFieldByName(fields, leafFieldName);
+    if (!field) {
+        result.error = "Member field not found: " + leafFieldName;
+        return false;
+    }
+    result.valueDisplay  = field->valueDisplay;
+    result.leafFieldName = leafFieldName;
+    result.ok            = true;
+    return true;
+}
 } // namespace
 
 std::vector<FieldPathStep> BuildFieldPathSteps(const std::vector<InspectorBreadcrumb>& stack) {
@@ -115,86 +218,19 @@ FieldPathCompareResult ResolvePathValue(Engine::UnityDumper& dumper,
             return result;
         }
 
-        if (step.isCollection) {
-            const auto fields = dumper.GetRawFields(currentKlass, currentInstance);
-            const Engine::FieldInfo* field = FindFieldByName(fields, step.fieldName);
-            if (!field) {
-                result.error = "Collection field not found: " + step.fieldName;
-                return result;
-            }
-
-            auto rows = dumper.GetCollectionView(*field);
-            if (rows.empty()) {
-                result.error = "Collection is empty or unreadable: " + step.fieldName;
-                return result;
-            }
-
-            if (isLastStep) {
-                if (collectionLeafIndex < 0
-                    || collectionLeafIndex >= static_cast<int>(rows.size())) {
-                    result.error = "Element index out of range.";
-                    return result;
-                }
-                result.valueDisplay = rows[static_cast<size_t>(collectionLeafIndex)].valueDisplay;
-                result.ok             = true;
-                return result;
-            }
-
-            result.error = "Collection step is only supported as the final path segment in v1.";
+        const SegmentOutcome outcome =
+            step.isCollection
+                ? ResolveCollectionSegment(dumper, step, isLastStep, collectionLeafIndex,
+                                           currentKlass, currentInstance, result)
+                : ResolveFieldSegment(dumper, step, isLastStep, leafFieldName, currentKlass,
+                                      currentInstance, result);
+        if (outcome == SegmentOutcome::Finished) {
             return result;
         }
-
-        const auto fields = dumper.GetRawFields(currentKlass, currentInstance);
-        const Engine::FieldInfo* field = FindFieldByName(fields, step.fieldName);
-        if (!field || !field->hasValue || field->valueAddress == 0) {
-            result.error = "Field not found or unreadable: " + step.fieldName;
-            return result;
-        }
-
-        const auto fieldCategory = Engine::Types::GetCategory(field->type);
-        const bool isPointerField =
-            fieldCategory == Engine::Types::TypeCategory::PTR
-            || fieldCategory == Engine::Types::TypeCategory::ARRAY
-            || fieldCategory == Engine::Types::TypeCategory::LIST;
-
-        if (isLastStep && !isPointerField) {
-            result.valueDisplay  = field->valueDisplay;
-            result.leafFieldName = field->name;
-            result.ok            = true;
-            return result;
-        }
-
-        if (isLastStep && isPointerField && leafFieldName.empty()) {
-            result.error = "Select a member field for the current object.";
-            return result;
-        }
-
-        void* nestedInstance = nullptr;
-        if (!ReadManagedPointer(field->valueAddress, nestedInstance)) {
-            result.error = "Field is not a readable managed reference: " + step.fieldName;
-            return result;
-        }
-
-        void* nestedKlass = nullptr;
-        if (dumper.TryGetClassNameFromInstance(nestedInstance, &nestedKlass).empty() || !nestedKlass) {
-            result.error = "Nested instance is no longer valid: " + step.fieldName;
-            return result;
-        }
-
-        currentInstance = nestedInstance;
-        currentKlass    = nestedKlass;
     }
 
     if (!leafFieldName.empty()) {
-        const auto fields = dumper.GetRawFields(currentKlass, currentInstance);
-        const Engine::FieldInfo* field = FindFieldByName(fields, leafFieldName);
-        if (!field) {
-            result.error = "Member field not found: " + leafFieldName;
-            return result;
-        }
-        result.valueDisplay  = field->valueDisplay;
-        result.leafFieldName = leafFieldName;
-        result.ok            = true;
+        ResolveLeafMember(dumper, currentKlass, currentInstance, leafFieldName, result);
         return result;
     }
 

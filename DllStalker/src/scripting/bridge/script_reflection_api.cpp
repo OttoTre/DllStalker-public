@@ -15,6 +15,7 @@
 #include <utility>
 
 #include "scripting/bridge/script_command.h"
+#include "scripting/bridge/script_value_format.h"
 #include "types/memory_guard.h"
 #include "types/type_classifier.h"
 #include "types/value_decoder.h"
@@ -230,7 +231,7 @@ ScriptApiResult ScriptReflectionApi::FindImage(const ScriptInstanceId& scriptId,
     const ScriptResult command = ExecuteTask([this, scriptId, imageName, op]() -> DS_Status {
         const auto images = dumper_.GetLoadedImages();
         for (const auto& image : images) {
-            if (image.name == imageName) {
+            if (ImageNamesMatch(imageName, image.name)) {
                 op->outImage = MakeProxy(scriptId,
                                          ScriptHandleKind::Image,
                                          reinterpret_cast<uintptr_t>(image.imagePtr),

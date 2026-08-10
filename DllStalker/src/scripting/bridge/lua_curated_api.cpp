@@ -155,7 +155,7 @@ void RegisterCuratedInstanceType(lua_State* state) {
     if (luaL_newmetatable(state, "DllStalker.ds.types.Instance")) {
         lua_pushcfunction(state, LuaCuratedInstanceToString);
         lua_setfield(state, -2, "__tostring");
-        luaL_register(state, nullptr, methods);
+        luaL_setfuncs(state, methods, 0);
         lua_pushvalue(state, -1);
         lua_setfield(state, -2, "__index");
     }

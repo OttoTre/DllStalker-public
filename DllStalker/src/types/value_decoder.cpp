@@ -247,15 +247,45 @@ std::string DecodeFieldValue(const std::string& fieldType, uintptr_t valueAddres
     }
     case Cat::STRING:
         return DecodeManagedString(valueAddress);
+    case Cat::VEC2: {
+        float x, y;
+        if (!Memory::TryReadValue(valueAddress, x)) return "??";
+        if (!Memory::TryReadValue(valueAddress + sizeof(float), y)) return "??";
+        char buf[48];
+        snprintf(buf, sizeof(buf), "(%.3f, %.3f)", x, y);
+        return buf;
+    }
     case Cat::VEC3: {
-        // Vector3 is an inline value type: three consecutive floats at the
-        // field address (no indirection, no managed object header).
+        // Inline value type: consecutive floats at the field address.
         float x, y, z;
         if (!Memory::TryReadValue(valueAddress,              x)) return "??";
         if (!Memory::TryReadValue(valueAddress + sizeof(float), y)) return "??";
         if (!Memory::TryReadValue(valueAddress + 2 * sizeof(float), z)) return "??";
         char buf[64];
         snprintf(buf, sizeof(buf), "(%.3f, %.3f, %.3f)", x, y, z);
+        return buf;
+    }
+    case Cat::VEC4:
+    case Cat::QUAT:
+    case Cat::COLOR:
+    case Cat::RECT: {
+        float a, b, c, d;
+        if (!Memory::TryReadValue(valueAddress, a)) return "??";
+        if (!Memory::TryReadValue(valueAddress + sizeof(float), b)) return "??";
+        if (!Memory::TryReadValue(valueAddress + 2 * sizeof(float), c)) return "??";
+        if (!Memory::TryReadValue(valueAddress + 3 * sizeof(float), d)) return "??";
+        char buf[80];
+        snprintf(buf, sizeof(buf), "(%.3f, %.3f, %.3f, %.3f)", a, b, c, d);
+        return buf;
+    }
+    case Cat::COLOR32: {
+        uint8_t r, g, b, a;
+        if (!Memory::TryReadValue(valueAddress, r)) return "??";
+        if (!Memory::TryReadValue(valueAddress + 1, g)) return "??";
+        if (!Memory::TryReadValue(valueAddress + 2, b)) return "??";
+        if (!Memory::TryReadValue(valueAddress + 3, a)) return "??";
+        char buf[48];
+        snprintf(buf, sizeof(buf), "(%u, %u, %u, %u)", r, g, b, a);
         return buf;
     }
     case Cat::PTR: {

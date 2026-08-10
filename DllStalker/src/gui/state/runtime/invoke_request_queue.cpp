@@ -27,37 +27,28 @@ std::string FormatInvokeArgsDisplay(const std::vector<std::string>& args) {
 } // namespace
 
 // ==== Method Invoker =================================================
-//
-// The GUI thread wraps the click into a Job, hands it to
-// MainThreadDispatcher. The runtime_invoke detour drains the job on the
-// engine's main thread (the first non-DllStalker thread to reach the
-// detour latches as the main thread). The Job captures the dumper pointer
-// + method copy + instance + parsed args by value, so it stays self-
-// contained even after the GUI rebuilds its method list.
-//
-// Failure modes that surface as immediate synthetic results (no enqueue):
-//   * Dumper not initialized
-//   * runtime_invoke hook didn't install (very rare; usually means the
-//     export wasn't resolved or MinHook conflicted with another tool)
-//   * Main thread not yet captured (game hasn't reached the title scene
-//     yet -- in practice resolves within milliseconds of process start)
-//
-// We deliberately do NOT fall back to a synchronous GUI-thread invoke
-// when the hook is unavailable. The previous design did that with a
-// warning, but it crashes hard on any method that touches the scene
-// graph and there's no way to know which methods are safe ahead of time.
-// Better to disable Run cleanly and let the user know.
+// GUI → MainThreadDispatcher job; runtime_invoke drains on Unity main.
+// Result sink is shared_ptr<InvokeRequestQueue> (panel-close safe).
+// No sync GUI-thread fallback when the hook/main is unavailable.
 void ControlPanelSessionState::EnqueueInvoke(const Engine::MethodInfo& method,
                                               void* instance,
                                               std::vector<std::string> args) {
+    auto queue = invokeQueue;
+    if (!queue) {
+        return;
+    }
+
     auto failImmediately = [&](const char* reason) {
-        std::lock_guard<std::mutex> lock(invokeQueue.mutex);
-        invokeQueue.latestResult.succeeded     = false;
-        invokeQueue.latestResult.error         = reason;
-        invokeQueue.latestResult.returnDisplay = "<error>";
-        invokeQueue.latestMethodName           = method.name;
-        invokeQueue.latestAtSeconds            = -1.0f;
-        invokeQueue.latestVersion.fetch_add(1);
+        std::lock_guard<std::mutex> lock(queue->mutex);
+        queue->latestResult.succeeded     = false;
+        queue->latestResult.error         = reason;
+        queue->latestResult.returnDisplay = "<error>";
+        queue->latestMethodName           = method.name;
+        queue->latestMethodParameters     = method.parameters;
+        queue->latestArgsDisplay          = FormatInvokeArgsDisplay(args);
+        queue->latestAtSeconds            = -1.0f;
+        queue->pendingMethodAudit         = true;
+        queue->latestVersion.fetch_add(1);
     };
 
     if (!dumper) {
@@ -79,7 +70,7 @@ void ControlPanelSessionState::EnqueueInvoke(const Engine::MethodInfo& method,
     auto methodParametersCopy = method.parameters;
     auto argsDisplayCopy      = FormatInvokeArgsDisplay(argsCopy);
 
-    auto runOne = [this, dumperRef, methodCopy, instance, argsCopy,
+    auto runOne = [queue, dumperRef, methodCopy, instance, argsCopy,
                    methodParametersCopy, argsDisplayCopy]() {
         Engine::InvokeResult result;
         try {
@@ -96,16 +87,17 @@ void ControlPanelSessionState::EnqueueInvoke(const Engine::MethodInfo& method,
             result.returnDisplay = "<error>";
         }
 
-        std::lock_guard<std::mutex> lock(invokeQueue.mutex);
-        invokeQueue.latestResult           = std::move(result);
-        invokeQueue.latestMethodName       = methodCopy.name;
-        invokeQueue.latestMethodParameters = methodParametersCopy;
-        invokeQueue.latestArgsDisplay      = argsDisplayCopy;
+        std::lock_guard<std::mutex> lock(queue->mutex);
+        queue->latestResult           = std::move(result);
+        queue->latestMethodName       = methodCopy.name;
+        queue->latestMethodParameters = methodParametersCopy;
+        queue->latestArgsDisplay      = argsDisplayCopy;
         // -1.0f sentinel: the GUI thread stamps the wall-clock time
         // when it next reads the new version, so the toast is timed
         // relative to when the user sees it (not when it ran).
-        invokeQueue.latestAtSeconds  = -1.0f;
-        invokeQueue.latestVersion.fetch_add(1);
+        queue->latestAtSeconds      = -1.0f;
+        queue->pendingMethodAudit   = true;
+        queue->latestVersion.fetch_add(1);
     };
 
     Engine::Services::MainThreadDispatcher::Enqueue(std::move(runOne));

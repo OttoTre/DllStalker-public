@@ -7,10 +7,11 @@
 #include "gui/chrome/ui_theme.h"
 #include "gui/session_state.h"
 #include "gui/config.h"
-#include "gui/views/class_browser.h"
+#include "gui/views/sidebar/class_browser.h"
 #include "gui/views/dock/utilities_dock.h"
-#include "gui/views/image_picker.h"
-#include "gui/views/inspector_frame.h"
+#include "gui/views/sidebar/image_picker.h"
+#include "gui/views/inspector/inspector_frame.h"
+#include "gui/views/sidebar/search_browser.h"
 #include "services/bootstrap_log.h"
 
 #include "imgui.h"
@@ -51,6 +52,32 @@ const Engine::ImageInfo* FindImageMatchingHint(
 }
 } // namespace
 
+void TickBeforePaint(ControlPanelSessionState& state) {
+    if (!state.dumper) {
+        return;
+    }
+
+    if (!state.loaders.imageLoadInProgress.load() && state.GetImageCacheSnapshot()->empty()) {
+        state.StartImageLoad(state.dumper);
+    }
+
+    // First-load reconciler (runs before paint, not in layout).
+    if (state.pendingDefaultImageSelection
+        && !state.loaders.imageLoadInProgress.load()
+        && state.selectedImage == nullptr
+        && state.imgSearchBuffer[0] != '\0') {
+        const auto images = state.GetImageCacheSnapshot();
+        if (!images->empty()) {
+            if (const Engine::ImageInfo* match = FindImageMatchingHint(*images, state.imgSearchBuffer)) {
+                state.SelectImage(*match, /*recordHistory=*/true);
+            }
+            state.pendingDefaultImageSelection = false;
+        }
+    }
+
+    state.TickPresentSideEffects();
+}
+
 void BeginControlPanelFrame(HWND hwnd) {
     ImGui_ImplDX11_NewFrame();
     ImGui_ImplWin32_NewFrame();
@@ -83,31 +110,7 @@ void RenderControlPanelContent(ControlPanelSessionState& state) {
 }
 
 void RenderMainLayout(ControlPanelSessionState& state, Views::CopyFeedbackState& copyFeedback) {
-    if (!state.loaders.imageLoadInProgress.load() && state.GetImageCacheSnapshot().empty()) {
-        state.StartImageLoad(state.dumper);
-    }
-
-    // First-load reconciler: the image combo's closed-label shows
-    // imgSearchBuffer ("Assembly-CSharp" by default) immediately, but the
-    // manual click handler is the only path that actually sets
-    // selectedImage and kicks off StartClassLoad. Bridge that gap once the
-    // image cache is populated so the user doesn't have to re-pick the
-    // image the UI is already pretending to have selected. Cleared after
-    // one attempt -- a missing hint shouldn't scan every frame.
-    if (state.pendingDefaultImageSelection
-        && !state.loaders.imageLoadInProgress.load()
-        && state.selectedImage == nullptr
-        && state.dumper
-        && state.imgSearchBuffer[0] != '\0') {
-        const auto images = state.GetImageCacheSnapshot();
-        if (!images.empty()) {
-            if (const Engine::ImageInfo* match = FindImageMatchingHint(images, state.imgSearchBuffer)) {
-                state.SelectImage(*match, /*recordHistory=*/true);
-            }
-            state.pendingDefaultImageSelection = false;
-        }
-    }
-
+    // Image auto-load + default selection run in TickBeforePaint.
     const ImVec2 avail = ImGui::GetContentRegionAvail();
     const float minMainH = 200.0f * Config::GUI_SCALE;
     const float minDockH = 160.0f * Config::GUI_SCALE;
@@ -135,7 +138,7 @@ void RenderMainLayout(ControlPanelSessionState& state, Views::CopyFeedbackState&
         ImGui::TableNextColumn();
         ImGui::BeginChild("SidebarPane", ImVec2(0, 0), false);
         Views::RenderImageSelection(state);
-        Views::RenderClassBrowser(state);
+        Views::RenderSidebarBrowser(state);
         ImGui::EndChild();
 
         ImGui::TableNextColumn();
@@ -155,6 +158,10 @@ void RenderMainLayout(ControlPanelSessionState& state, Views::CopyFeedbackState&
 void RenderDumperInitialization(ControlPanelSessionState& state) {
     if (UiTheme::PrimaryButton("Init Dumper Engine", ImVec2(-1, 40))) {
         try {
+            // Join inspector/live writers before dropping the previous dumper
+            // shared_ptr (in-flight GetLiveInstances may still be waiting).
+            state.CancelInspectorCacheWriters();
+            state.ClearInspectorCache();
             state.dumper = std::make_shared<Engine::UnityDumper>(Engine::Unity);
             state.ClearImageCache();
             state.StartImageLoad(state.dumper);

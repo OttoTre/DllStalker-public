@@ -4,6 +4,8 @@
 
 #include "scripting/bridge/script_reflection_api.h"
 
+#include "scripting/bridge/script_value_format.h"
+
 #include <cctype>
 #include <sstream>
 #include <string_view>
@@ -112,7 +114,7 @@ bool ScriptReflectionApi::ResolveClassByName(const std::string& imageName,
                                              Engine::ClassInfo& outClass) {
     const auto images = dumper_.GetLoadedImages();
     for (const auto& image : images) {
-        if (image.name != imageName) {
+        if (!ImageNamesMatch(imageName, image.name)) {
             continue;
         }
         return FindClassInImage(image.imagePtr, className, classNamespace, outClass);

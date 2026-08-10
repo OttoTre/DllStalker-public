@@ -4,40 +4,14 @@
 
 #include "scripting/bridge/script_reflection_api.h"
 
+#include "scripting/bridge/script_value_format.h"
+
 #include <cstdio>
 
 #include "types/type_classifier.h"
 
 namespace Scripting
 {
-namespace
-{
-std::string FormatLuaInput(const ScriptValue& value) {
-    switch (value.kind) {
-    case ScriptValueKind::Invalid:
-        return {};
-    case ScriptValueKind::Nil:
-        return "null";
-    case ScriptValueKind::Boolean:
-        return value.booleanValue ? "true" : "false";
-    case ScriptValueKind::Integer:
-        return std::to_string(value.integerValue);
-    case ScriptValueKind::Unsigned:
-        return std::to_string(value.unsignedValue);
-    case ScriptValueKind::Number: {
-        char buffer[64]{};
-        snprintf(buffer, sizeof(buffer), "%.17g", value.numberValue);
-        return buffer;
-    }
-    case ScriptValueKind::String:
-        return value.stringValue;
-    default:
-        return {};
-    }
-}
-
-} // namespace
-
 ScriptApiResult ScriptReflectionApi::ConvertValueToInvokeInput(const ScriptValue& value,
                                                                const Engine::MethodParam& param,
                                                                const ScriptInstanceId& scriptId,
@@ -92,13 +66,24 @@ ScriptApiResult ScriptReflectionApi::ConvertValueToInvokeInput(const ScriptValue
                                      "boolean parameter expects boolean");
     }
 
-    if (category == Cat::ARRAY || category == Cat::LIST || category == Cat::VEC3 ||
-        category == Cat::UNKNOWN) {
+    // I8/U8: reject Lua numbers (mantissa loss); require string like read path.
+    if (category == Cat::I8 || category == Cat::U8) {
+        if (value.kind != ScriptValueKind::String) {
+            return ScriptApiResult::Fail(DS_Status::DS_ERR_ARG_TYPE_MISMATCH,
+                                         "I8/U8 requires a string literal (Lua number is lossy)");
+        }
+        outInput = value.stringValue;
+        return ScriptApiResult::Ok();
+    }
+
+    if (category == Cat::ARRAY || category == Cat::LIST
+        || Engine::Types::IsInlineValueStruct(category)
+        || category == Cat::UNKNOWN) {
         return ScriptApiResult::Fail(DS_Status::DS_ERR_UNSUPPORTED_TYPE,
                                      "unsupported parameter type");
     }
 
-    outInput = FormatLuaInput(value);
+    outInput = FormatScriptValueAsLuaInput(value);
     if (outInput.empty()) {
         return ScriptApiResult::Fail(DS_Status::DS_ERR_ARG_TYPE_MISMATCH,
                                      "argument value type mismatch");

@@ -38,8 +38,11 @@ public:
     // These keep the historical `Engine::Unity.X` call sites in dllmain,
     // hooks, and presets working without each one having to reach through
     // the sub-service member explicitly.
-    void* FindImage(const char* assemblyName) {
-        return images.FindImage(assemblyName);
+    void* FindImage(const char* assemblyName, int maxAttempts = 10) {
+        return images.FindImage(assemblyName, maxAttempts);
+    }
+    void* FindImageExact(const char* assemblyName, int maxAttempts = 10) {
+        return images.FindImageExact(assemblyName, maxAttempts);
     }
     uintptr_t GetMethodAddress(void* image, const char* className, const char* methodName,
                                int args = ANY_AMOUNT, const char* ns = GLOBAL_NAMESPACE) const {

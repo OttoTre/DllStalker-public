@@ -30,6 +30,13 @@ void RenderScalarFieldEditCell(const Engine::FieldInfo& field,
                                float& editStatusAtSeconds,
                                const std::function<void(bool)>& doRefresh);
 
+void RenderBoolFieldEditCell(const Engine::FieldInfo& field,
+                             ControlPanelSessionState& state,
+                             size_t fieldIndex,
+                             char editStatus[],
+                             float& editStatusAtSeconds,
+                             const std::function<void(bool)>& doRefresh);
+
 void RenderEnumFieldEditCell(const Engine::FieldInfo& field,
                              ControlPanelSessionState& state,
                              size_t fieldIndex,

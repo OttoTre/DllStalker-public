@@ -1,6 +1,6 @@
 # DllStalker
 
-DllStalker is a C++20 internal DLL toolkit for Unity games (IL2CPP and Mono). It combines runtime API resolution, preset-based hook installation and optional debug tooling (GUI + console) for reverse-engineering workflows.
+DllStalker is a C++20 internal DLL toolkit for Unity games (IL2CPP and Mono). It combines runtime API resolution, preset-based hook installation and optional debug tooling (control-panel GUI + bootstrap diagnostics) for reverse-engineering workflows.
 
 ![Gif snippet](DllStalker/docs/Snippet.gif)
 
@@ -55,7 +55,7 @@ Add `manifest.json` when you need a display name, Curated profile, a non-`main.l
 
 - **GUI** (`include/gui/`, `src/gui/`)
   - Win32 + D3D11 + Dear ImGui control panel
-  - Runtime metadata browsing, field analysis, transform edit, live watch/plot, call logging, SDK export and scripting dock
+  - Assembly/class browse, **Value Search**, field analysis, transform edit, live watch/plot, call logging, SDK export and scripting dock
 
 ## Requirements & building
 
@@ -103,7 +103,7 @@ Use **Release \| x64** for a lean DLL focused on preset hooks.
 Use **Debug \| x64** when you need the control panel plus native debugging.
 
 - Full GUI and runtime invoke tooling
-- Console output for live feedback
+- Init-screen **System log** for bootstrap/hook feedback
 - Easier iteration on hooks and inspector behavior
 
 ### DebugRelease (recommended for GUI work)
@@ -111,7 +111,7 @@ Use **Debug \| x64** when you need the control panel plus native debugging.
 Use **DebugRelease \| x64** when smoke-testing the control panel.
 
 - Optimized like Release, with all `ENABLE_DUMPER` paths enabled
-- Typical build for inspector, dock tabs, transform tab, call logger and scripting validation
+- Typical build for inspector, **Search**, dock tabs, transform tab, call logger and scripting validation
 
 ## Binary Placement
 
@@ -133,28 +133,29 @@ DllStalker forwards the standard Windows `version.dll` exports to `C:\Windows\Sy
 
 After a successful deploy of a dumper-enabled build:
 
-1. **Debug console** — a console window opens with bootstrap logs (`Unity.Init`, hook status, warnings).
-2. **Control panel** — a separate desktop window titled **DllStalker - Control Panel** opens automatically. It is **not** an in-game overlay; alt-tab to it like any other Win32 app.
-3. In the control panel, click **Init Dumper Engine** before browsing assemblies (see [GUI Capabilities](#gui-capabilities)).
+1. **Control panel** — a separate desktop window titled **DllStalker - Control Panel** opens automatically. It is **not** an in-game overlay; alt-tab to it like any other Win32 app.
+2. On the **Init** screen, review the **System log** (in-memory bootstrap ring — hook/engine status). There is **no** Win32 debug console in dumper builds.
+3. Click **Init Dumper Engine** before browsing assemblies (see [GUI Capabilities](#gui-capabilities)).
 
-**Release \| x64** builds do not spawn the control panel or dumper UI; only the console-less hook/engine path runs.
+**Release \| x64** builds do not spawn the control panel. Bootstrap lines append to `stalker_runtime/dllstalker.log` next to the proxy DLL when the file sink is available.
 
-## Debug Console
+## Bootstrap diagnostics
 
-When the bootstrap thread initializes successfully, DllStalker allocates a console window and writes runtime logs to stdout.
+Dumper builds (`Debug` / `DebugRelease`) keep startup diagnostics in an in-memory **BootstrapLog** ring and show them on the Init screen **System log** (auto-scroll). Closing the control panel does **not** exit the game.
 
-Typical console usage includes:
+Typical lines include:
 
 - Startup status (`Unity.Init`, preset install progress)
 - Hook creation/enable results and error codes
 - Runtime warnings (missing exports, unresolved targets)
-- Live operational logs from active hooks
+
+**Release \| x64** writes the same class of messages to `stalker_runtime/dllstalker.log` (no GUI).
 
 Why this matters:
 
 - Fast validation that hooks were mounted
 - Immediate signal when a method/assembly lookup fails
-- Easier triage of Debug vs Release behavior differences
+- Diagnose issues without connecting a debugger
 
 ## GUI Capabilities
 
@@ -162,7 +163,7 @@ The debug GUI is for runtime exploration, controlled edits and safe invocation.
 
 **First step:** click **Init Dumper Engine** in the control panel before browsing assemblies.
 
-**Layout:** left metadata browser (~30%); right workspace (**Methods | Fields | Transform**); bottom **Utilities Dock** (**Bookmarks → History → Watcher → Logger → Exporter → Scripting**). Dock tabs restore navigation or host live tooling; they do not replace the main inspector models.
+**Layout:** left sidebar (**Classes \| Search**); right workspace (**Methods | Fields | Transform**); bottom **Utilities Dock** (**Bookmarks → History → Watcher → Logger → Exporter → Scripting**). Dock tabs restore navigation or host live tooling; they do not replace the main inspector models.
 
 ### Utilities Dock
 
@@ -182,12 +183,30 @@ From **Watcher** or **History**, **Jump** restores the workspace to the linked l
 - **Image Selection**
   - Shows loaded assemblies/images with class counts
   - Filter is **case-sensitive** (`strstr` behavior)
-- **Class Browser**
+- **Class Browser** (sidebar **Classes**)
   - Fuzzy filter over class name + namespace
   - Filter is **case-insensitive**
+  - Long names scroll horizontally in the list
 - **Sorting behavior**
   - Data is rendered from runtime snapshots/caches
   - For Mono image enumeration, duplicates are normalized internally (sorted + deduplicated before display)
+
+### Search tab (Value Search)
+
+Sidebar **Search** finds live instance fields by **name** and/or **value** within the **selected image** (not a Cheat Engine–style heap scan). Explicit **Search** runs a background walk; **Drill** re-checks the current hit list when values change; **Stop** cancels an in-flight run.
+
+**Filters**
+
+- **Field name** / **Value** boxes — empty value + name is name-only Search; Drill requires a value
+- **`=/~`** toggles (left of each box) — **Strict** / **Fuzzy** match mode (name default fuzzy; value default strict). String values compare after stripping wrapping quotes (case-insensitive)
+- **Type:** **Number · String · Ptr** chips
+- **Deep** (tree icon, next to Drill) — search inside Array/List element fields and **one** PTR hop (e.g. `codeLibrary.code[0].name`). Deep off → no interiors / no Follow
+
+**Hits**
+
+- Rows look like `Class::instance::field = value` (long rows scroll horizontally)
+- Click a hit to load that instance in the inspector
+- Cap **500** hits; status shows instance/field visit counts
 
 ### Instance discovery (two methods)
 
@@ -255,10 +274,10 @@ Runtime-authored Lua scripts live under `stalker_runtime/mods` next to the injec
 
 ### Field editing
 
-Simple field editing is supported for primitive categories (numeric + boolean) and enums (combo).
+Simple field editing is supported for scalars, booleans (checkbox), enums (combo), strings (quoted display; edit strips quotes), and allowlisted Unity inline structs where decode/write are honest.
 
 - Typical workflow: edit value in-place, press **OK**, auto-refresh verifies the write.
-- String/reference/container direct overwrite is intentionally restricted in this path.
+- Opaque pointer / collection **container** overwrite stays restricted (navigate elements instead).
 
 ### Navigation (Breadcrumbs)
 
@@ -274,12 +293,21 @@ Navigate object graphs directly from field values:
 
 1. Click **Init Dumper Engine**.
 2. Open **Image Selection** and choose the target image.
-3. Use **Class Browser** filter to find your class.
+3. Use sidebar **Classes** filter to find your class.
 4. In **Fields**, click **Find Instances** and choose source mode (Static discovery / Live API).
 5. Pick an instance from the candidates combo.
 6. Go to **Methods** and click **Run**:
    - immediate call for 0-arg methods,
    - arg modal for methods with parameters.
+
+### Workflow 1b: Search fields by name or value
+
+1. Click **Init Dumper Engine** and select an image.
+2. Open sidebar **Search**.
+3. Enter a **Field name** and/or **Value** (e.g. value `SpoonBender`, or name `cheats`).
+4. Enable **Deep** when the value sits inside an Array/List or behind a PTR field.
+5. Click **Search** (magnifier). Click a hit to open that instance in **Fields**.
+6. Optional: change the live value in-game or in Fields, then **Drill** to keep only hits that still match the value box.
 
 ### Workflow 2: Edit a primitive field and verify
 
@@ -371,7 +399,7 @@ void Install(void* assemblyImage) {
 }
 
 const Presets::HookPreset kPreset = { "Example", "Assembly-CSharp", &Install };
-const bool kRegistered = (Presets::Register(kPreset), true); // <---- Function call
+const bool kRegistered = (Presets::Register(kPreset), true); // <---- Function call registers the plugin
 }
 ```
 
@@ -379,23 +407,22 @@ const bool kRegistered = (Presets::Register(kPreset), true); // <---- Function c
 
 In `src/services/hook_installer.cpp`, set:
 
-- `kSelectedPresetName = "Example";` — install that preset's hooks
+- `kSelectedPresetName = "Example";` — install that preset's hooks, case sensitive
 - `kSelectedPresetName = "-";` — **no preset hooks** (default; avoids colliding with GUI call-logger hooks)
 
 ### 4) Build and verify
 
-- Build **DebugRelease \| x64** or **Debug \| x64** for console logs + GUI
+- Build **DebugRelease \| x64** or **Debug \| x64** for Init-screen bootstrap log + GUI
 - Build **Release \| x64** for hook-only payload
-- Deploy `version.dll` and confirm preset install messages in the console
+- Deploy `version.dll` and confirm preset install messages in the Init **System log** (or `stalker_runtime/dllstalker.log` on Release)
 
 ## Runtime Flow
 
 1. `DllMain` starts bootstrap thread (and GUI thread when dumper is enabled).
-2. `Engine::Unity.Init()` resolves runtime exports.
-3. Console is allocated for runtime logs.
-4. `MainThreadDispatcher::InstallRuntimeInvokeHook()` (dumper builds) — non-fatal if it fails.
-5. `Hooks::StartHooking()` initializes MinHook and installs the selected preset.
-6. GUI thread runs the control panel; user clicks **Init Dumper Engine** to create `UnityDumper` and load images.
+2. `Engine::Unity.Init()` resolves runtime exports (diagnostics via `BootstrapLog`).
+3. `MainThreadDispatcher::InstallRuntimeInvokeHook()` (dumper builds) — non-fatal if it fails.
+4. `Hooks::StartHooking()` initializes MinHook and installs the selected preset.
+5. GUI thread runs the control panel; user clicks **Init Dumper Engine** to create `UnityDumper` and load images.
 
 ## Repository Layout (high level)
 
@@ -472,7 +499,7 @@ DllStalker/
 
 ### Hook create/enable failed
 
-- Check console output for MinHook status
+- Check the Init **System log** (or Release `dllstalker.log`) for MinHook status
 - Verify method signature/namespace/arg count used in `GetMethodAddress(...)`
 - Re-check Debug vs Release behavior for target function layout differences
 
@@ -492,6 +519,13 @@ This is expected behavior:
 
 - class filter is **case-insensitive**
 - image filter is **case-sensitive**
+
+### Search: no hits or unexpected misses
+
+- Select an **image** first; Search walks classes in that assembly only.
+- Enable **Deep** for values inside Array/List elements or one PTR hop (e.g. nested library → `cheats[i].name`).
+- String values: type the text without relying on exact quotes (Search normalizes wrapping `"`).
+- Hit cap is **500** — narrow name/value or Drill after editing.
 
 ### Logger: Log disabled or no lines
 

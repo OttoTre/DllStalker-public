@@ -59,12 +59,18 @@ void DrawColumnOffset(const char* text);
 void DrawColumnValue(const char* text);
 
 // Caller must PushID() for unique row ids.
-bool BrowseSelectable(const char* display, bool selected, float indent = 0.0f);
+// minWidth: optional content floor so ListClipper + HorizontalScrollbar stay stable
+// (pass max label width for the list; 0 = pane/label only).
+bool BrowseSelectable(const char* display, bool selected, float indent = 0.0f,
+                      float minWidth = 0.0f);
 
 bool ElevatedFilter(const char* id, char* buf, size_t buf_size, float width = -1.0f,
                     const char* hint = nullptr);
 bool GhostButton(const char* label, const ImVec4* text_color = nullptr);
 bool ChipToggle(const char* label, bool* value);
+// Umbra '=' / '~' match-mode toggle.
+bool GhostFilterModeButton(const char* id, bool* isStrict,
+                           const char* tooltipStrict, const char* tooltipFuzzy);
 
 ImGuiTableFlags InspectorTableFlags();
 bool BeginInspectorTable(const char* id, int columns);

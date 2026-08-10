@@ -8,7 +8,7 @@
 
 #include <algorithm>
 
-#include "dumper/invoke_param_policy.h"
+#include "dumper/invoke/invoke_param_policy.h"
 #include "types/memory_guard.h"
 #include "types/value_decoder.h"
 

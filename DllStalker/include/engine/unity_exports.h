@@ -44,6 +44,7 @@ struct UnityExports
     typedef void*    (__cdecl* t_MonoSigGetReturnType)(void* sig);            // Mono
     typedef void*    (__cdecl* t_Il2CppMethodGetParam)(void* method, uint32_t index); // IL2CPP
     typedef void*    (__cdecl* t_Il2CppMethodGetReturnType)(void* method);    // IL2CPP
+    typedef void*    (__cdecl* t_Il2CppMethodGetPointer)(void* method);       // IL2CPP
     typedef uint32_t (__cdecl* t_MethodGetFlags)(void* method, uint32_t* outImplFlags); // Shared
     // Managed-string allocation. Different signatures per engine: IL2CPP
     // keeps a process-global default domain so it doesn't take one;
@@ -61,8 +62,9 @@ struct UnityExports
     // Field
     typedef void*   (__cdecl* t_FieldFromName)(void* klass, const char* name);
     typedef size_t  (__cdecl* t_FieldGetOffset)(void* field);
+    // Intentionally unused: do not bind field_static_get_value (wrong ABI).
+    // Static field bases come from class_get_static_field_data in the dumper.
     typedef void*   (__cdecl* t_FieldGetStaticAddr)(void* field);
-    typedef void*   (__cdecl* t_ClassGetVTable)(void* domain, void* klass);
     typedef void*   (__cdecl* t_RuntimeInvoke)(void* method, void* obj, void** params, void** exc);
     typedef void*   (__cdecl* t_TypeGetObject)(void* type);                 // IL2CPP
     typedef void*   (__cdecl* t_MonoTypeGetObject)(void* domain, void* type); // Mono
@@ -120,8 +122,8 @@ struct UnityExports
     // Field
     t_FieldFromName     fnGetFieldFromName  = nullptr;
     t_FieldGetOffset    fnGetFieldOffset    = nullptr;
+    // Always null — kept for layout continuity; never resolve.
     t_FieldGetStaticAddr fnFieldGetStaticAddr = nullptr;
-    t_ClassGetVTable    fnGetVTable     = nullptr;
     t_RuntimeInvoke     fnRuntimeInvoke = nullptr;
     t_ClassGetType      fnClassGetType  = nullptr;
     t_TypeGetObject     fnTypeGetObject = nullptr;
@@ -141,6 +143,8 @@ struct UnityExports
     // signature's param list.
     t_Il2CppMethodGetParam  fnIl2cppMethodGetParam   = nullptr;
     t_Il2CppMethodGetReturnType fnIl2cppMethodGetReturnType = nullptr;
+    // Prefer over MethodInfo[0] layout peek when present.
+    t_Il2CppMethodGetPointer fnIl2cppMethodGetPointer = nullptr;
     t_MonoSigGetParams      fnMonoSignatureGetParams = nullptr;
     t_MonoSigGetReturnType  fnMonoSignatureGetReturnType = nullptr;
     // Managed-string allocation (one per engine, identical purpose).

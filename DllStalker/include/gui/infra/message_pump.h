@@ -9,6 +9,10 @@
 
 namespace Gui::Infra
 {
+// Frame budgets for the control-panel pump (see UpdateFramePacing / idle clamp).
+constexpr int kInputFrameBudgetMs = 8;
+constexpr int kIdleFrameBudgetMs  = 100;
+
 bool IsUiInputMessage(UINT message);
 bool ProcessControlPanelMessages(MSG& msg, bool& hadInputMessage);
 bool WaitForRenderTriggerIfNeeded(bool& requestRender, bool hadInputMessage, DWORD idleWakeMs = INFINITE);

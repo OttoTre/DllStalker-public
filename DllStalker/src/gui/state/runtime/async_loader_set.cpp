@@ -11,18 +11,24 @@ namespace Gui
 // ====================================================================
 // Async load entry points
 //
-// Pattern for every Start* method:
-//   1. Move-assign an empty jthread into the worker member. That triggers
-//      request_stop + join on whatever was previously there, so the previous
-//      worker either already finished (and its write was published) OR sees
-//      the stop request before its write block and bails out. Either way the
-//      cache is in a known state when we resume.
-//   2. Set the in-progress flag.
-//   3. If we have nothing to load, clear the flag and return (no worker).
-//   4. Spawn the new jthread, capturing the dumper / target by value. The
-//      worker checks the stop_token before each write so a new Start*Load
-//      issued while it is mid-flight cannot poison the cache.
+// Start*: move-assign empty jthread (stop+join prior) → set in-progress →
+// spawn worker that checks stop_token before each cache write.
+// EditBufferStore / EnumLiteralCache: clear here after join, never from workers.
 // ====================================================================
+
+void ControlPanelSessionState::CancelInstanceCompare() {
+    loaders.compareThread = {};
+    loaders.compareInProgress.store(false);
+}
+
+void ControlPanelSessionState::CancelInspectorCacheWriters() {
+    loaders.inspectorLoadThread = {};
+    loaders.fieldsLoadThread = {};
+    loaders.instanceSearchThread = {};
+    CancelInstanceCompare();
+    // Value Search is independent of inspector.cache writers — do not cancel
+    // it here (hit→inspector uses NavigateToValueSearchHit → load helpers).
+}
 
 void ControlPanelSessionState::StartImageLoad(const std::shared_ptr<Engine::UnityDumper>& dumperRef) {
     loaders.imageLoadThread = {};
@@ -41,8 +47,7 @@ void ControlPanelSessionState::StartImageLoad(const std::shared_ptr<Engine::Unit
             return;
         }
         {
-            std::lock_guard<std::mutex> lock(imageCache.mutex);
-            imageCache.data = std::move(loadedImages);
+            imageCache.Replace(std::move(loadedImages));
         }
         loaders.imageLoadInProgress.store(false);
     });
@@ -65,8 +70,7 @@ void ControlPanelSessionState::StartClassLoad(const std::shared_ptr<Engine::Unit
             return;
         }
         {
-            std::lock_guard<std::mutex> lock(classCache.mutex);
-            classCache.data = std::move(loadedClasses);
+            classCache.Replace(std::move(loadedClasses));
         }
         loaders.classLoadInProgress.store(false);
     });
@@ -75,8 +79,10 @@ void ControlPanelSessionState::StartClassLoad(const std::shared_ptr<Engine::Unit
 void ControlPanelSessionState::StartInspectorLoad(const std::shared_ptr<Engine::UnityDumper>& dumperRef, void* selectedClassSnapshot) {
     // The inspector and the static-instance search both write into
     // inspector.cache, so cancel any running instance scan as well.
-    loaders.inspectorLoadThread = {};
-    loaders.instanceSearchThread = {};
+    CancelInspectorCacheWriters();
+    editBufferStore.Clear();
+    enumLiteralCache.Clear();
+    ClearTransformJumpCache();
     loaders.inspectorLoadInProgress.store(true);
 
     if (!dumperRef || !selectedClassSnapshot) {
@@ -100,23 +106,47 @@ void ControlPanelSessionState::StartInspectorLoad(const std::shared_ptr<Engine::
             // StartFieldsLoad once Static/Live discovery auto-populates
             // activeInstancePtr.
             loadedCache.fieldsLoadedForInstance = nullptr;
+            loadedCache.methodsCatalogLoaded = true;
             if (stopToken.stop_requested()) {
                 loaders.inspectorLoadInProgress.store(false);
                 return;
             }
 
             std::lock_guard<std::mutex> lock(inspector.mutex);
+            // Preserve Find-Instances selection only when roots already belong
+            // to this class (PublishFindInstancesResult sets activeClassPtr).
+            // Avoid copying a prior class's Compare roots after a failed
+            // AtInstance load left cache empty but roots intact.
+            const bool preserveRootsForClass =
+                !inspector.rootInstanceCandidates.empty()
+                && inspector.cache.activeClassPtr == selectedClassSnapshot;
+            const std::vector<void*> preservedRoots =
+                preserveRootsForClass ? inspector.rootInstanceCandidates : std::vector<void*>{};
+            const int preservedIndex = preserveRootsForClass ? inspector.selectedInstanceIndex : -1;
+
             inspector.cache = std::move(loadedCache);
-            inspector.selectedInstanceIndex = -1;
-            editBufferStore.buffers.clear();
-            enumLiteralCache.Clear();
+            if (!preservedRoots.empty()) {
+                inspector.cache.instanceCandidates = preservedRoots;
+                if (preservedIndex >= 0
+                    && preservedIndex < static_cast<int>(preservedRoots.size())) {
+                    inspector.selectedInstanceIndex = preservedIndex;
+                    inspector.cache.activeInstancePtr = preservedRoots[static_cast<size_t>(preservedIndex)];
+                }
+                else {
+                    inspector.selectedInstanceIndex = 0;
+                    inspector.cache.activeInstancePtr = preservedRoots.front();
+                }
+            }
+            else {
+                inspector.selectedInstanceIndex = -1;
+            }
+            inspector.NoteCacheMutated();
         }
         catch (...) {
             std::lock_guard<std::mutex> lock(inspector.mutex);
             inspector.cache = {};
             inspector.selectedInstanceIndex = -1;
-            editBufferStore.buffers.clear();
-            enumLiteralCache.Clear();
+            inspector.NoteCacheMutated();
         }
 
         loaders.inspectorLoadInProgress.store(false);
@@ -126,6 +156,7 @@ void ControlPanelSessionState::StartInspectorLoad(const std::shared_ptr<Engine::
 void ControlPanelSessionState::StartFieldsLoad(const std::shared_ptr<Engine::UnityDumper>& dumperRef, void* selectedClassSnapshot) {
     loaders.fieldsLoadThread = {};
     loaders.fieldsLoadInProgress.store(true);
+    ClearTransformJumpCache();
 
     if (!dumperRef || !selectedClassSnapshot) {
         loaders.fieldsLoadInProgress.store(false);
@@ -153,6 +184,7 @@ void ControlPanelSessionState::StartFieldsLoad(const std::shared_ptr<Engine::Uni
             // Match the instance pointer we actually loaded against so the
             // inspector_frame reconciler treats this slice as up-to-date.
             inspector.cache.fieldsLoadedForInstance = activeInstanceSnapshot;
+            inspector.NoteCacheMutated();
         }
         catch (...) {
             // Field reads can throw if the underlying instance is freed
@@ -164,7 +196,10 @@ void ControlPanelSessionState::StartFieldsLoad(const std::shared_ptr<Engine::Uni
 }
 
 void ControlPanelSessionState::StartStaticInstanceSearch(const std::shared_ptr<Engine::UnityDumper>& dumperRef, void* selectedClassSnapshot) {
-    loaders.instanceSearchThread = {};
+    // Sequence writers of inspector.cache: cancel inspector/fields loads
+    // before publishing candidates. Reconciler restarts StartInspectorLoad
+    // when methods are still empty after this cancels an in-flight load.
+    CancelInspectorCacheWriters();
     loaders.instanceSearchInProgress.store(true);
 
     if (!dumperRef || !selectedClassSnapshot) {
@@ -187,15 +222,7 @@ void ControlPanelSessionState::StartStaticInstanceSearch(const std::shared_ptr<E
             return;
         }
 
-        {
-            std::lock_guard<std::mutex> lock(inspector.mutex);
-            inspector.rootInstanceCandidates = candidates;
-            inspector.cache.instanceCandidates = std::move(candidates);
-            inspector.cache.activeClassPtr = selectedClassSnapshot;
-            inspector.cache.activeInstancePtr = inspector.cache.instanceCandidates.empty() ? nullptr : inspector.cache.instanceCandidates.front();
-            inspector.selectedInstanceIndex = inspector.cache.instanceCandidates.empty() ? -1 : 0;
-        }
-
+        inspector.PublishFindInstancesResult(std::move(candidates), selectedClassSnapshot);
         loaders.instanceSearchInProgress.store(false);
     });
 }
@@ -204,8 +231,11 @@ void ControlPanelSessionState::StartInspectorLoadAtInstance(const std::shared_pt
     // Same cancel-then-relaunch pattern as StartInspectorLoad. We also stop
     // the instance-search worker because both writers touch inspector.cache,
     // and we'll be replacing instanceCandidates ourselves.
-    loaders.inspectorLoadThread = {};
-    loaders.instanceSearchThread = {};
+    // rootInstanceCandidates is intentionally left alone (Compare A/B list).
+    CancelInspectorCacheWriters();
+    editBufferStore.Clear();
+    enumLiteralCache.Clear();
+    ClearTransformJumpCache();
     loaders.inspectorLoadInProgress.store(true);
 
     if (!dumperRef || !klass || !instance) {
@@ -233,25 +263,24 @@ void ControlPanelSessionState::StartInspectorLoadAtInstance(const std::shared_pt
             // Fields are instance-aware -- mark them so the inspector_frame
             // reconciler doesn't re-fire StartFieldsLoad on the next tick.
             loadedCache.fieldsLoadedForInstance = instance;
+            loadedCache.methodsCatalogLoaded = true;
             if (stopToken.stop_requested()) {
                 loaders.inspectorLoadInProgress.store(false);
                 return;
             }
 
             std::lock_guard<std::mutex> lock(inspector.mutex);
+            // cache.instanceCandidates becomes {instance}; rootInstanceCandidates
+            // (Compare list) is intentionally not touched.
             inspector.cache = std::move(loadedCache);
             inspector.selectedInstanceIndex = 0;
-            // Different instance => previously-typed edit values are no
-            // longer valid (their target addresses changed).
-            editBufferStore.buffers.clear();
-            enumLiteralCache.Clear();
+            inspector.NoteCacheMutated();
         }
         catch (...) {
             std::lock_guard<std::mutex> lock(inspector.mutex);
             inspector.cache = {};
             inspector.selectedInstanceIndex = -1;
-            editBufferStore.buffers.clear();
-            enumLiteralCache.Clear();
+            inspector.NoteCacheMutated();
         }
 
         loaders.inspectorLoadInProgress.store(false);
@@ -265,8 +294,10 @@ void ControlPanelSessionState::StartCollectionLoad(const std::shared_ptr<Engine:
     // Same cancel-then-relaunch discipline as the other Start*Load methods,
     // and we cancel the instance-search worker as well because both writers
     // touch inspector.cache.
-    loaders.inspectorLoadThread = {};
-    loaders.instanceSearchThread = {};
+    CancelInspectorCacheWriters();
+    editBufferStore.Clear();
+    enumLiteralCache.Clear();
+    ClearTransformJumpCache();
     loaders.inspectorLoadInProgress.store(true);
 
     if (!dumperRef) {
@@ -300,6 +331,7 @@ void ControlPanelSessionState::StartCollectionLoad(const std::shared_ptr<Engine:
             // the owning instance address and the per-row drill-ins on
             // reference elements still find their target. Methods are not
             // meaningful in a collection view, so clear them.
+            // rootInstanceCandidates stays put for Compare.
             inspector.cache.methods.clear();
             inspector.cache.fields = std::move(elementRows);
             inspector.cache.instanceCandidates.clear();
@@ -310,18 +342,14 @@ void ControlPanelSessionState::StartCollectionLoad(const std::shared_ptr<Engine:
             inspector.cache.activeClassPtr          = ownerKlass;
             inspector.cache.activeInstancePtr       = ownerInstance;
             inspector.cache.fieldsLoadedForInstance = ownerInstance;
-            // Collection element addresses can change between refreshes (GC moves objects).
-            // Clear address-keyed edit buffers to avoid reusing stale values on new rows.
-            editBufferStore.buffers.clear();
-            enumLiteralCache.Clear();
+            inspector.NoteCacheMutated();
         }
         catch (...) {
             std::lock_guard<std::mutex> lock(inspector.mutex);
             inspector.cache.methods.clear();
             inspector.cache.fields.clear();
             inspector.cache.instanceCandidates.clear();
-            editBufferStore.buffers.clear();
-            enumLiteralCache.Clear();
+            inspector.NoteCacheMutated();
         }
 
         loaders.inspectorLoadInProgress.store(false);
@@ -329,7 +357,7 @@ void ControlPanelSessionState::StartCollectionLoad(const std::shared_ptr<Engine:
 }
 
 void ControlPanelSessionState::StartLiveInstanceSearch(const std::shared_ptr<Engine::UnityDumper>& dumperRef, void* selectedClassSnapshot) {
-    loaders.instanceSearchThread = {};
+    CancelInspectorCacheWriters();
     loaders.instanceSearchInProgress.store(true);
 
     if (!dumperRef || !selectedClassSnapshot) {
@@ -337,6 +365,8 @@ void ControlPanelSessionState::StartLiveInstanceSearch(const std::shared_ptr<Eng
         return;
     }
 
+    // Worker waits on GetLiveInstances (FindObjects runs on Unity main via
+    // MainThreadDispatcher) then only publishes the returned candidate list.
     loaders.instanceSearchThread = std::jthread([this, dumperRef, selectedClassSnapshot](std::stop_token stopToken) {
         Engine::Services::MainThreadDispatcher::TagCurrentThreadAsOurs();
         std::vector<void*> candidates;
@@ -352,15 +382,7 @@ void ControlPanelSessionState::StartLiveInstanceSearch(const std::shared_ptr<Eng
             return;
         }
 
-        {
-            std::lock_guard<std::mutex> lock(inspector.mutex);
-            inspector.rootInstanceCandidates = candidates;
-            inspector.cache.instanceCandidates = std::move(candidates);
-            inspector.cache.activeClassPtr = selectedClassSnapshot;
-            inspector.cache.activeInstancePtr = inspector.cache.instanceCandidates.empty() ? nullptr : inspector.cache.instanceCandidates.front();
-            inspector.selectedInstanceIndex = inspector.cache.instanceCandidates.empty() ? -1 : 0;
-        }
-
+        inspector.PublishFindInstancesResult(std::move(candidates), selectedClassSnapshot);
         loaders.instanceSearchInProgress.store(false);
     });
 }

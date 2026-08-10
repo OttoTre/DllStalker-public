@@ -297,8 +297,11 @@ Common failures include stale handles, dispatcher unavailability, main-thread ca
 Current limitations:
 
 - `:get` and `:set` are instance-only helpers.
-- `:invoke` returns display strings today, not fully typed Lua return values.
+- `:invoke` returns display strings today, not fully typed Lua return values (typed returns deferred — see Product-History).
 - Object-reference field writes are rejected.
+- **Image names:** `find_image` / `find_object` accept bare names or `.dll` suffixes interchangeably (e.g. `Assembly-CSharp` ↔ `Assembly-CSharp.dll`).
+- **Int64 / UInt64 fields and invoke args:** pass **string literals** (e.g. `"9223372036854775807"`), not Lua numbers — doubles lose precision past 2⁵³. Reads already return these as strings.
+- **`instruction_budget`:** engine default only (not a GUI/manifest knob yet).
 - `ds.find_method` returns a lookup/diagnostic handle; invocation runs through `instance:invoke(signature, ...)`.
 - Static field mutation, permissions enforcement, nested budget-object semantics and raw user FFI are not shipped.
 

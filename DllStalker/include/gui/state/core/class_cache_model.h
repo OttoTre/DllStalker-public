@@ -4,6 +4,7 @@
 
 #ifdef ENABLE_DUMPER
 
+#include <memory>
 #include <mutex>
 #include <vector>
 
@@ -13,14 +14,15 @@ namespace Gui::State
 {
 // Mutex-guarded class list for the currently selected image. Same shape as
 // ImageCacheModel; kept distinct so swap-order between image / class loads
-// is unambiguous.
+// is unambiguous. Snapshot returns shared_ptr (cheap per-frame copy).
 struct ClassCacheModel
 {
-    std::vector<Engine::ClassInfo> data{};
-    mutable std::mutex             mutex{};
+    std::shared_ptr<const std::vector<Engine::ClassInfo>> data =
+        std::make_shared<const std::vector<Engine::ClassInfo>>();
+    mutable std::mutex mutex{};
 
     void Clear();
-    std::vector<Engine::ClassInfo> Snapshot() const;
+    std::shared_ptr<const std::vector<Engine::ClassInfo>> Snapshot() const;
     void Replace(std::vector<Engine::ClassInfo> v);
 };
 } // namespace Gui::State

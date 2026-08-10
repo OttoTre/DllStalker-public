@@ -80,7 +80,9 @@ bool UnityModule::ResolveExports() {
 
     if (isIL2CPP) {
         exports.fnGetAssemblies      = (E::t_GetAssemblies)Resolve("domain_get_assemblies");
-        exports.fnFieldGetStaticAddr = (E::t_FieldGetStaticAddr)Resolve("field_get_static_terminate_data");
+        // Static field data uses class_get_static_field_data (dumper InitDumperExports).
+        // Do not bind field_static_get_value (or similar) as an "address" API —
+        // wrong ABI / semantics.
         exports.fnRuntimeInvoke      = (E::t_RuntimeInvoke)Resolve("runtime_invoke");
         exports.fnClassGetType       = (E::t_ClassGetType)Resolve("class_get_type");
         exports.fnTypeGetObject      = (E::t_TypeGetObject)Resolve("type_get_object");
@@ -90,13 +92,10 @@ bool UnityModule::ResolveExports() {
         exports.fnIl2cppMethodGetParam = (E::t_Il2CppMethodGetParam)Resolve("method_get_param");
         exports.fnIl2cppMethodGetReturnType =
             (E::t_Il2CppMethodGetReturnType)Resolve("method_get_return_type");
+        exports.fnIl2cppMethodGetPointer =
+            (E::t_Il2CppMethodGetPointer)Resolve("method_get_pointer");
         exports.fnIl2cppStringNew      = (E::t_Il2CppStringNew)Resolve("string_new");
         exports.fnClassFromType        = (E::t_ClassFromType)Resolve("class_from_il2cpp_type");
-        if (!exports.fnFieldGetStaticAddr) {
-            Engine::Services::BootstrapLog::Write(
-                "[*] Fallback: Trying alternative export for field_get_static_terminate_data\n");
-            exports.fnFieldGetStaticAddr = (E::t_FieldGetStaticAddr)Resolve("field_static_get_value");
-        }
 
         releaseEngineValid = (exports.fnGetAssemblies != nullptr);
         debugEngineValid   = (exports.fnGetAssemblies != nullptr) && (exports.fnRuntimeInvoke != nullptr)
@@ -104,7 +103,8 @@ bool UnityModule::ResolveExports() {
     }
     else {
         exports.fnCompileMethod     = (E::t_CompileMethod)Resolve("compile_method");
-        exports.fnGetVTable         = (E::t_ClassGetVTable)Resolve("class_vtable");
+        // class_vtable intentionally not resolved — unused; klass from
+        // instances goes through object_get_class.
         exports.fnRuntimeInvoke     = (E::t_RuntimeInvoke)Resolve("runtime_invoke");
         exports.fnAssemblyForeach   = (E::t_AssemblyForeach)Resolve("assembly_foreach");
         exports.fnMonoAssemblyOpen  = (E::t_MonoAssemblyOpen)Resolve("domain_assembly_open");

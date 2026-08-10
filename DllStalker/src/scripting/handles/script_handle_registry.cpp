@@ -10,7 +10,24 @@ namespace Scripting
 {
 ScriptHandle ScriptHandleRegistry::Register(const RegisterHandleRequest& request) {
     std::lock_guard<std::mutex> lock(mutex_);
-    const uint32_t index = static_cast<uint32_t>(entries_.size());
+
+    uint32_t index = 0;
+    if (!freeIndices_.empty()) {
+        index = freeIndices_.back();
+        freeIndices_.pop_back();
+        HandleRegistryEntry& entry = entries_[index];
+        entry.registryIndex = index;
+        entry.generation = nextGeneration_++;
+        entry.nativeAddress = request.nativeAddress;
+        entry.kind = request.kind;
+        entry.runtimeKind = request.runtimeKind;
+        entry.expectedClassIdentity = request.expectedClassIdentity;
+        entry.ownerScriptId = request.ownerScriptId;
+        entry.isAlive = request.kind != ScriptHandleKind::Invalid && request.nativeAddress != 0;
+        return PackHandle(index, entry.generation);
+    }
+
+    index = static_cast<uint32_t>(entries_.size());
     HandleRegistryEntry entry{};
     entry.registryIndex = index;
     entry.generation = nextGeneration_++;
@@ -27,10 +44,15 @@ ScriptHandle ScriptHandleRegistry::Register(const RegisterHandleRequest& request
 void ScriptHandleRegistry::InvalidateOwnedBy(const ScriptInstanceId& ownerScriptId) noexcept {
     std::lock_guard<std::mutex> lock(mutex_);
     for (HandleRegistryEntry& entry : entries_) {
-        if (entry.ownerScriptId == ownerScriptId) {
-            entry.isAlive = false;
-            ++entry.generation;
+        if (entry.ownerScriptId != ownerScriptId) {
+            continue;
         }
+        if (!entry.isAlive) {
+            continue;
+        }
+        entry.isAlive = false;
+        ++entry.generation;
+        freeIndices_.push_back(entry.registryIndex);
     }
 }
 

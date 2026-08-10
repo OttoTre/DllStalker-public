@@ -88,6 +88,40 @@ void DrawSearchIcon(ImDrawList* draw, ImVec2 p0, float size, ImU32 col)
     draw->AddLine(ImVec2(hx0, hy0), ImVec2(hx1, hy1), col, 1.25f);
 }
 
+// Umbra funnel / narrow glyph (Search Drill) — wide top → stem.
+void DrawDrillIcon(ImDrawList* draw, ImVec2 p0, float size, ImU32 col)
+{
+    const float pad_x = size * 0.18f;
+    const float pad_y = size * 0.18f;
+    const float mid_y = p0.y + size * 0.52f;
+    const float stem_w = size * 0.16f;
+    const float cx = p0.x + size * 0.50f;
+    const ImVec2 top_l(p0.x + pad_x, p0.y + pad_y);
+    const ImVec2 top_r(p0.x + size - pad_x, p0.y + pad_y);
+    const ImVec2 mid_l(cx - stem_w * 0.5f, mid_y);
+    const ImVec2 mid_r(cx + stem_w * 0.5f, mid_y);
+    draw->AddTriangleFilled(top_l, top_r, mid_r, col);
+    draw->AddTriangleFilled(top_l, mid_r, mid_l, col);
+    draw->AddRectFilled(ImVec2(cx - stem_w * 0.5f, mid_y),
+                        ImVec2(cx + stem_w * 0.5f, p0.y + size - pad_y), col);
+}
+
+// Umbra-adjacent Search control language; Deep ≠ Drill funnel.
+// Simple tree: one root node + two child nodes (not a busy binary tree).
+void DrawDeepIcon(ImDrawList* draw, ImVec2 p0, float size, ImU32 col)
+{
+    const float thick = 1.25f;
+    const float node_r = size * 0.085f;
+    const ImVec2 root(p0.x + size * 0.50f, p0.y + size * 0.28f);
+    const ImVec2 child_l(p0.x + size * 0.28f, p0.y + size * 0.72f);
+    const ImVec2 child_r(p0.x + size * 0.72f, p0.y + size * 0.72f);
+    draw->AddLine(root, child_l, col, thick);
+    draw->AddLine(root, child_r, col, thick);
+    draw->AddCircleFilled(root, node_r, col, 12);
+    draw->AddCircleFilled(child_l, node_r, col, 12);
+    draw->AddCircleFilled(child_r, node_r, col, 12);
+}
+
 void DrawStopIcon(ImDrawList* draw, ImVec2 p0, float size, ImU32 col)
 {
     const float padX = size * 0.30f;
@@ -224,27 +258,33 @@ enum class IconColorMode : uint8_t
 
 using IconDrawFn = void (*)(ImDrawList* draw, ImVec2 p0, float size, ImU32 col, void* user);
 
-bool IconButtonCore(const char* id,
-                    float size,
-                    const char* tooltip,
-                    IconDrawFn draw_icon,
-                    void* draw_user,
-                    IconColorMode color_mode,
-                    ImU32 accent_col,
-                    bool state_on = false,
-                    bool enabled = true,
-                    bool suppress_hover_wash = false,
-                    bool accept_press = true)
+struct IconButtonOpts
 {
+    const char* id = nullptr;
+    float size = -1.0f;
+    const char* tooltip = nullptr;
+    IconDrawFn draw_icon = nullptr;
+    void* draw_user = nullptr;
+    IconColorMode color_mode = IconColorMode::Fixed;
+    ImU32 accent_col = 0;
+    bool state_on = false;
+    bool enabled = true;
+    bool suppress_hover_wash = false;
+    bool accept_press = true;
+};
+
+bool IconButtonCore(const IconButtonOpts& opts)
+{
+    float size = opts.size;
     if (size < 0.0f) {
         size = CompactIconSize();
     }
 
-    const bool pressed = ImGui::InvisibleButton(id, ImVec2(size, size));
+    const bool pressed = ImGui::InvisibleButton(opts.id, ImVec2(size, size));
     const bool tip_hovered = ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled);
     const bool hover_wash = ImGui::IsItemHovered() || ImGui::IsItemActive();
-    if (tooltip != nullptr && tip_hovered) {
-        ImGui::SetTooltip("%s", tooltip);
+    if (opts.tooltip != nullptr && tip_hovered) {
+        ImGui::SetTooltip("%s", opts.tooltip);
     }
 
     ImDrawList* draw = ImGui::GetWindowDrawList();
@@ -252,7 +292,7 @@ bool IconButtonCore(const char* id,
     const ImVec2 rmax = ImGui::GetItemRectMax();
 
     const ColorTokens& tokens = Tokens();
-    const bool show_wash = enabled && !suppress_hover_wash && hover_wash;
+    const bool show_wash = opts.enabled && !opts.suppress_hover_wash && hover_wash;
     if (show_wash) {
         const ImU32 bg = ImGui::ColorConvertFloat4ToU32(
             ImGui::IsItemActive() ? WithAlpha(tokens.accent, 0.35f)
@@ -261,21 +301,21 @@ bool IconButtonCore(const char* id,
     }
 
     ImU32 col;
-    if (!enabled) {
+    if (!opts.enabled) {
         col = ImGui::GetColorU32(ImGuiCol_TextDisabled);
     }
-    else if (color_mode == IconColorMode::Fixed) {
-        col = accent_col;
+    else if (opts.color_mode == IconColorMode::Fixed) {
+        col = opts.accent_col;
     }
-    else if (color_mode == IconColorMode::StateAccent && state_on) {
-        col = accent_col;
+    else if (opts.color_mode == IconColorMode::StateAccent && opts.state_on) {
+        col = opts.accent_col;
     }
     else {
         col = ImGui::GetColorU32(hover_wash ? ImGuiCol_Text : ImGuiCol_TextDisabled);
     }
 
-    draw_icon(draw, rmin, size, col, draw_user);
-    return accept_press && pressed;
+    opts.draw_icon(draw, rmin, size, col, opts.draw_user);
+    return opts.enabled && opts.accept_press && pressed;
 }
 
 void DrawPlayAdapter(ImDrawList* d, ImVec2 p, float s, ImU32 c, void*)
@@ -293,6 +333,14 @@ void DrawTrashAdapter(ImDrawList* d, ImVec2 p, float s, ImU32 c, void*)
 void DrawSearchAdapter(ImDrawList* d, ImVec2 p, float s, ImU32 c, void*)
 {
     DrawSearchIcon(d, p, s, c);
+}
+void DrawDrillAdapter(ImDrawList* d, ImVec2 p, float s, ImU32 c, void*)
+{
+    DrawDrillIcon(d, p, s, c);
+}
+void DrawDeepAdapter(ImDrawList* d, ImVec2 p, float s, ImU32 c, void*)
+{
+    DrawDeepIcon(d, p, s, c);
 }
 void DrawSnapshotAdapter(ImDrawList* d, ImVec2 p, float s, ImU32 c, void*)
 {
@@ -322,65 +370,157 @@ void DrawPowerAdapter(ImDrawList* d, ImVec2 p, float s, ImU32 c, void* user)
 
 bool IconPlayButton(const char* id, const char* tooltip, float size, bool enabled)
 {
-    return IconButtonCore(id, size, tooltip, DrawPlayAdapter, nullptr, IconColorMode::Fixed,
-                          ImGui::ColorConvertFloat4ToU32(Tokens().success), false, enabled);
+    IconButtonOpts opts{};
+    opts.id = id;
+    opts.size = size;
+    opts.tooltip = tooltip;
+    opts.draw_icon = DrawPlayAdapter;
+    opts.color_mode = IconColorMode::Fixed;
+    opts.accent_col = ImGui::ColorConvertFloat4ToU32(Tokens().success);
+    opts.enabled = enabled;
+    return IconButtonCore(opts);
 }
 
 bool IconRefreshButton(const char* id, const char* tooltip, float size, float spin_radians)
 {
     const bool spinning = spin_radians != 0.0f;
+    IconButtonOpts opts{};
+    opts.id = id;
+    opts.size = size;
+    opts.tooltip = tooltip;
+    opts.draw_icon = DrawRefreshAdapter;
+    opts.draw_user = &spin_radians;
     if (spinning) {
-        return IconButtonCore(id, size, tooltip, DrawRefreshAdapter, &spin_radians,
-                              IconColorMode::Fixed, ImGui::GetColorU32(ImGuiCol_Text), false, true,
-                              true, false);
+        opts.color_mode = IconColorMode::Fixed;
+        opts.accent_col = ImGui::GetColorU32(ImGuiCol_Text);
+        opts.suppress_hover_wash = true;
+        opts.accept_press = false;
+        return IconButtonCore(opts);
     }
-    return IconButtonCore(id, size, tooltip, DrawRefreshAdapter, &spin_radians,
-                          IconColorMode::HoverBrighten, 0);
+    opts.color_mode = IconColorMode::HoverBrighten;
+    return IconButtonCore(opts);
 }
 
 bool IconStopButton(const char* id, const char* tooltip, float size, bool enabled)
 {
-    return IconButtonCore(id, size, tooltip, DrawStopAdapter, nullptr, IconColorMode::Fixed,
-                          ImGui::ColorConvertFloat4ToU32(Tokens().error), false, enabled);
+    IconButtonOpts opts{};
+    opts.id = id;
+    opts.size = size;
+    opts.tooltip = tooltip;
+    opts.draw_icon = DrawStopAdapter;
+    opts.color_mode = IconColorMode::Fixed;
+    opts.accent_col = ImGui::ColorConvertFloat4ToU32(Tokens().error);
+    opts.enabled = enabled;
+    return IconButtonCore(opts);
 }
 
 bool IconTrashButton(const char* id, const char* tooltip, float size, bool enabled)
 {
-    return IconButtonCore(id, size, tooltip, DrawTrashAdapter, nullptr, IconColorMode::Fixed,
-                          ImGui::GetColorU32(ImGuiCol_Text), false, enabled);
+    IconButtonOpts opts{};
+    opts.id = id;
+    opts.size = size;
+    opts.tooltip = tooltip;
+    opts.draw_icon = DrawTrashAdapter;
+    opts.color_mode = IconColorMode::Fixed;
+    opts.accent_col = ImGui::GetColorU32(ImGuiCol_Text);
+    opts.enabled = enabled;
+    return IconButtonCore(opts);
 }
 
 bool IconStarButton(const char* id, bool filled, const char* tooltip)
 {
-    return IconButtonCore(id, CompactIconSize(), tooltip, DrawStarAdapter, &filled,
-                          IconColorMode::StateAccent,
-                          ImGui::ColorConvertFloat4ToU32(Tokens().bookmark_gold), filled);
+    IconButtonOpts opts{};
+    opts.id = id;
+    opts.size = CompactIconSize();
+    opts.tooltip = tooltip;
+    opts.draw_icon = DrawStarAdapter;
+    opts.draw_user = &filled;
+    opts.color_mode = IconColorMode::StateAccent;
+    opts.accent_col = ImGui::ColorConvertFloat4ToU32(Tokens().bookmark_gold);
+    opts.state_on = filled;
+    return IconButtonCore(opts);
 }
 
-bool IconSearchButton(const char* id, const char* tooltip, float size)
+bool IconSearchButton(const char* id, const char* tooltip, float size, bool enabled)
 {
-    return IconButtonCore(id, size, tooltip, DrawSearchAdapter, nullptr,
-                          IconColorMode::HoverBrighten, 0);
+    // Full text colour when actionable (same CTA weight as Snapshot/camera).
+    IconButtonOpts opts{};
+    opts.id = id;
+    opts.size = size;
+    opts.tooltip = tooltip;
+    opts.draw_icon = DrawSearchAdapter;
+    opts.color_mode = IconColorMode::Fixed;
+    opts.accent_col = ImGui::GetColorU32(ImGuiCol_Text);
+    opts.enabled = enabled;
+    return IconButtonCore(opts);
+}
+
+bool IconDrillButton(const char* id, const char* tooltip, float size, bool enabled)
+{
+    // Umbra: accent when Drill is available; muted when not.
+    IconButtonOpts opts{};
+    opts.id = id;
+    opts.size = size;
+    opts.tooltip = tooltip;
+    opts.draw_icon = DrawDrillAdapter;
+    opts.color_mode = IconColorMode::Fixed;
+    opts.accent_col = ImGui::ColorConvertFloat4ToU32(Tokens().accent);
+    opts.enabled = enabled;
+    return IconButtonCore(opts);
+}
+
+bool IconDeepButton(const char* id, bool deep_on, const char* tooltip, float size)
+{
+    IconButtonOpts opts{};
+    opts.id = id;
+    opts.size = size;
+    opts.tooltip = tooltip;
+    opts.draw_icon = DrawDeepAdapter;
+    opts.color_mode = IconColorMode::StateAccent;
+    opts.accent_col = ImGui::ColorConvertFloat4ToU32(Tokens().accent);
+    opts.state_on = deep_on;
+    return IconButtonCore(opts);
 }
 
 bool IconLockButton(const char* id, bool locked, const char* tooltip)
 {
-    return IconButtonCore(id, CompactIconSize(), tooltip, DrawLockAdapter, &locked,
-                          IconColorMode::StateAccent,
-                          ImGui::ColorConvertFloat4ToU32(Tokens().warning), locked);
+    IconButtonOpts opts{};
+    opts.id = id;
+    opts.size = CompactIconSize();
+    opts.tooltip = tooltip;
+    opts.draw_icon = DrawLockAdapter;
+    opts.draw_user = &locked;
+    opts.color_mode = IconColorMode::StateAccent;
+    opts.accent_col = ImGui::ColorConvertFloat4ToU32(Tokens().warning);
+    opts.state_on = locked;
+    return IconButtonCore(opts);
 }
 
 bool IconActiveButton(const char* id, bool is_active, const char* tooltip)
 {
-    return IconButtonCore(id, CompactIconSize(), tooltip, DrawPowerAdapter, &is_active,
-                          IconColorMode::StateAccent,
-                          ImGui::ColorConvertFloat4ToU32(Tokens().success), is_active);
+    IconButtonOpts opts{};
+    opts.id = id;
+    opts.size = CompactIconSize();
+    opts.tooltip = tooltip;
+    opts.draw_icon = DrawPowerAdapter;
+    opts.draw_user = &is_active;
+    opts.color_mode = IconColorMode::StateAccent;
+    opts.accent_col = ImGui::ColorConvertFloat4ToU32(Tokens().success);
+    opts.state_on = is_active;
+    return IconButtonCore(opts);
 }
 
 bool IconSnapshotButton(const char* id, const char* tooltip, float size, bool enabled)
 {
-    return IconButtonCore(id, size, tooltip, DrawSnapshotAdapter, nullptr, IconColorMode::Fixed,
-                          ImGui::GetColorU32(ImGuiCol_Text), false, enabled);
+    IconButtonOpts opts{};
+    opts.id = id;
+    opts.size = size;
+    opts.tooltip = tooltip;
+    opts.draw_icon = DrawSnapshotAdapter;
+    opts.color_mode = IconColorMode::Fixed;
+    opts.accent_col = ImGui::GetColorU32(ImGuiCol_Text);
+    opts.enabled = enabled;
+    return IconButtonCore(opts);
 }
 } // namespace Gui::UiTheme
 

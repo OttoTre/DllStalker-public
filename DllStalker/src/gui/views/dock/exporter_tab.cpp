@@ -4,7 +4,7 @@
 
 #include "gui/views/dock/exporter_tab.h"
 
-#include "dumper/sdk_exporter.h"
+#include "dumper/export/sdk_exporter.h"
 #include "gui/chrome/ui_theme.h"
 #include "gui/session_state.h"
 
@@ -101,7 +101,8 @@ std::vector<Engine::ClassInfo> BuildClassList(ControlPanelSessionState& state, E
 		}
 		{
 			bool found = false;
-			for (const auto& c : state.classCache.data) {
+			const auto classSnap = state.GetClassCacheSnapshot();
+			for (const auto& c : *classSnap) {
 				if (c.klassPtr == state.selectedClass) {
 					classes.push_back(c);
 					found = true;
@@ -182,7 +183,7 @@ void RenderExporterTab(ControlPanelSessionState& state) {
 	ImGui::Checkbox("Fields", &fieldsChecked);
 	ImGui::EndDisabled();
 	ImGui::SameLine();
-	ImGui::Checkbox("Methods (RVA)", &includeMethods);
+	ImGui::Checkbox("Methods (addr)", &includeMethods);
 	ImGui::SameLine();
 	ImGui::Checkbox("Enums", &includeEnums);
 
@@ -226,7 +227,7 @@ void RenderExporterTab(ControlPanelSessionState& state) {
 					lastStatus = "Export complete.";
 				}
 				else {
-					lastStatus = "Export failed (see console).";
+					lastStatus = "Export failed (see Init log).";
 				}
 			}
 		}

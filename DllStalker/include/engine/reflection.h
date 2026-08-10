@@ -5,8 +5,8 @@
 #include "engine/unity_module.h"
 
 // Name-based reflection helpers used by the hook installer and preset code.
-// Returns memory addresses (RVAs / JIT pointers / field offsets) the user
-// can plug straight into MinHook. Walks the inheritance chain so callers
+// Returns native method pointers (absolute VA / Mono JIT) or field offsets
+// the user can plug into MinHook. Walks the inheritance chain so callers
 // don't have to know which type along the chain owns the symbol.
 namespace Engine
 {

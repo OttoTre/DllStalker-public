@@ -57,23 +57,29 @@ void ImageEnumerator::ForEachImage(const ImageVisitor& visitor) const {
         return;
     }
 
+    // Release validity may allow Mono boot with domain_assembly_open only;
+    // FindImage uses that fast-path. ForEachImage still needs foreach.
+    if (!m_module.exports.fnAssemblyForeach) {
+        return;
+    }
+
     VisitorContext ctx{ &m_module, &visitor, false };
     m_module.exports.fnAssemblyForeach((void*)ForEachImageTrampoline, &ctx);
 }
 
-void* ImageEnumerator::FindImage(const char* assemblyName) {
+void* ImageEnumerator::FindImage(const char* assemblyName, int maxAttempts) {
     m_module.EnsureThreadAttached();
     if (!assemblyName || !assemblyName[0]) {
         return nullptr;
     }
 
-    constexpr int kFindImageMaxRetries = 10; // (~10s @ 1s cadence).
-    int retryCount = 0;
+    const int attempts = maxAttempts < 1 ? 1 : maxAttempts;
+    int attempt = 0;
 
-    printf("[*] Searching for image: %s...\n", assemblyName);
+    printf("[*] Searching for image (substring): %s...\n", assemblyName);
 
     void* foundImage = nullptr;
-    while (retryCount < kFindImageMaxRetries && !foundImage) {
+    while (attempt < attempts && !foundImage) {
         // --- Stage A: Mono fast-path. domain_assembly_open returns the loaded
         // assembly directly when the image is already known to the runtime.
         if (!m_module.isIL2CPP && m_module.exports.fnMonoAssemblyOpen) {
@@ -86,6 +92,7 @@ void* ImageEnumerator::FindImage(const char* assemblyName) {
         }
 
         // --- Stage B: Fallback iterator (works for both backends).
+        // Substring: first match wins — ambiguous for short needles.
         ForEachImage([&](void* image, const char* name) {
             if (name && strstr(name, assemblyName)) {
                 foundImage = image;
@@ -96,17 +103,78 @@ void* ImageEnumerator::FindImage(const char* assemblyName) {
 
         if (foundImage) break;
 
-        Sleep(1000);
-        retryCount++;
-        printf("[.] Retry number: %d\n", retryCount);
+        ++attempt;
+        if (attempt < attempts) {
+            Sleep(1000);
+            printf("[.] Retry number: %d\n", attempt);
+        }
     }
 
     if (foundImage) {
-        printf("[+] Image '%s' found after %d retries.\n", assemblyName, retryCount);
+        printf("[+] Image '%s' found after %d attempt(s).\n", assemblyName, attempt + 1);
         return foundImage;
     }
 
     printf("[-] Image '%s' NOT found (Timeout).\n", assemblyName);
+    return nullptr;
+}
+
+void* ImageEnumerator::FindImageExact(const char* assemblyName, int maxAttempts) {
+    m_module.EnsureThreadAttached();
+    if (!assemblyName || !assemblyName[0]) {
+        return nullptr;
+    }
+
+    const int attempts = maxAttempts < 1 ? 1 : maxAttempts;
+    int attempt = 0;
+
+    printf("[*] Searching for image (exact): %s...\n", assemblyName);
+
+    void* foundImage = nullptr;
+    while (attempt < attempts && !foundImage) {
+        if (!m_module.isIL2CPP && m_module.exports.fnMonoAssemblyOpen) {
+            if (void* ass = m_module.exports.fnMonoAssemblyOpen(m_module.domain, assemblyName)) {
+                if (void* img = m_module.exports.fnGetImage(ass)) {
+                    // Confirm the opened image's reported name matches exactly
+                    // when GetImageName is available.
+                    if (m_module.exports.fnGetImageName) {
+                        const char* name = m_module.exports.fnGetImageName(img);
+                        if (name && std::strcmp(name, assemblyName) == 0) {
+                            foundImage = img;
+                            break;
+                        }
+                    }
+                    else {
+                        foundImage = img;
+                        break;
+                    }
+                }
+            }
+        }
+
+        ForEachImage([&](void* image, const char* name) {
+            if (name && std::strcmp(name, assemblyName) == 0) {
+                foundImage = image;
+                return false;
+            }
+            return true;
+        });
+
+        if (foundImage) break;
+
+        ++attempt;
+        if (attempt < attempts) {
+            Sleep(1000);
+            printf("[.] Retry number: %d\n", attempt);
+        }
+    }
+
+    if (foundImage) {
+        printf("[+] Image '%s' found (exact) after %d attempt(s).\n", assemblyName, attempt + 1);
+        return foundImage;
+    }
+
+    printf("[-] Image '%s' NOT found exact (Timeout).\n", assemblyName);
     return nullptr;
 }
 } // namespace Engine

@@ -14,7 +14,8 @@
 namespace Gui::State
 {
 // Lazy cache of enum literal name/value lists keyed by engine enum klass pointer.
-// UI-thread only (no mutex). Cleared when inspector/image/class selection resets.
+// UI-thread only (no mutex). Cleared on the GUI thread with EditBufferStore
+// (Start*Load / selection resets) — never from async workers.
 struct EnumLiteralCache {
     std::unordered_map<void*, std::vector<Engine::EnumLiteral>> byKlass{};
     std::unordered_set<uintptr_t>                               customModeKeys{};

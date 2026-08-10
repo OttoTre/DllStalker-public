@@ -9,6 +9,7 @@
 #include "imgui.h"
 
 #include <cfloat>
+#include <cstdio>
 
 namespace Gui::UiTheme
 {
@@ -256,7 +257,7 @@ void CenteredDisabledGlyph(const char* glyph, float width)
     ImGui::GetWindowDrawList()->AddText(pos, ImGui::GetColorU32(ImGuiCol_TextDisabled), glyph);
 }
 
-bool BrowseSelectable(const char* display, bool selected, float indent)
+bool BrowseSelectable(const char* display, bool selected, float indent, float minWidth)
 {
     if (display == nullptr) {
         display = "";
@@ -273,9 +274,22 @@ bool BrowseSelectable(const char* display, bool selected, float indent)
     if (avail_w < 1.0f) {
         avail_w = 1.0f;
     }
-    // Positive width required on ImGui 1.92 — do not pass -FLT_MIN.
+    // max(pane, label, list floor) — floor keeps H-scroll stable under ListClipper.
+    // When caller already passed a measured floor, skip per-row label measure (Search hit Present).
+    float row_w = avail_w;
+    if (minWidth > 0.0f) {
+        if (minWidth > row_w) {
+            row_w = minWidth;
+        }
+    }
+    else {
+        const ImVec2 text_size = font->CalcTextSizeA(font_size, FLT_MAX, 0.0f, display);
+        if (text_size.x > row_w) {
+            row_w = text_size.x;
+        }
+    }
     const bool clicked = ImGui::Selectable("##browse_row", selected, ImGuiSelectableFlags_None,
-                                           ImVec2(avail_w, line_h));
+                                           ImVec2(row_w, line_h));
 
     const ImVec2 rmin = ImGui::GetItemRectMin();
     const ImVec2 rsize = ImGui::GetItemRectSize();
@@ -331,6 +345,53 @@ bool ChipToggle(const char* label, bool* value)
     const bool pressed = GhostButton(label, &text);
     if (pressed) {
         *value = !*value;
+        return true;
+    }
+    return false;
+}
+
+bool GhostFilterModeButton(const char* id, bool* isStrict,
+                           const char* tooltipStrict, const char* tooltipFuzzy)
+{
+    if (isStrict == nullptr || id == nullptr) {
+        return false;
+    }
+    const ColorTokens& t = Tokens();
+    const char* glyph = *isStrict ? "=" : "~";
+
+    // Frame-height hit target; larger drawn glyph ("=" is unreadable at default size).
+    const float h = ImGui::GetFrameHeight();
+    char btn_id[64] = {};
+    std::snprintf(btn_id, sizeof(btn_id), "###%s", id);
+
+    const bool pressed = ImGui::InvisibleButton(btn_id, ImVec2(h, h));
+    const bool tip_hovered = ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled);
+    const bool hover_wash = ImGui::IsItemHovered() || ImGui::IsItemActive();
+    if (tip_hovered) {
+        ImGui::SetTooltip("%s",
+                          *isStrict
+                              ? (tooltipStrict ? tooltipStrict : "Strict")
+                              : (tooltipFuzzy ? tooltipFuzzy : "Fuzzy"));
+    }
+
+    ImDrawList* draw = ImGui::GetWindowDrawList();
+    const ImVec2 rmin = ImGui::GetItemRectMin();
+    const ImVec2 rmax = ImGui::GetItemRectMax();
+    if (hover_wash) {
+        const ImU32 bg = ImGui::ColorConvertFloat4ToU32(
+            ImGui::IsItemActive() ? WithAlpha(t.accent, 0.35f)
+                                  : WithAlpha(t.accent, 0.20f));
+        draw->AddRectFilled(rmin, rmax, bg, ImGui::GetStyle().FrameRounding);
+    }
+
+    ImFont* font = ImGui::GetFont();
+    const float glyph_size = ImGui::GetFontSize() * 1.65f;
+    const ImVec2 ts = font->CalcTextSizeA(glyph_size, FLT_MAX, 0.0f, glyph);
+    const ImVec2 pos(rmin.x + (h - ts.x) * 0.5f, rmin.y + (h - ts.y) * 0.5f);
+    draw->AddText(font, glyph_size, pos, ImGui::ColorConvertFloat4ToU32(t.text), glyph);
+
+    if (pressed) {
+        *isStrict = !*isStrict;
         return true;
     }
     return false;

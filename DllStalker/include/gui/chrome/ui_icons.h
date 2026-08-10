@@ -14,7 +14,12 @@ bool IconRefreshButton(const char* id, const char* tooltip, float size = -1.0f,
 bool IconStopButton(const char* id, const char* tooltip, float size = -1.0f, bool enabled = true);
 bool IconTrashButton(const char* id, const char* tooltip, float size = -1.0f, bool enabled = true);
 bool IconStarButton(const char* id, bool filled, const char* tooltip);
-bool IconSearchButton(const char* id, const char* tooltip, float size = -1.0f);
+bool IconSearchButton(const char* id, const char* tooltip, float size = -1.0f,
+                      bool enabled = true);
+// Umbra funnel: accent when enabled (Drill available), muted when not.
+bool IconDrillButton(const char* id, const char* tooltip, float size = -1.0f, bool enabled = true);
+// Umbra-adjacent Search control; Deep ≠ Drill funnel. Tree: root + two children.
+bool IconDeepButton(const char* id, bool deep_on, const char* tooltip, float size = -1.0f);
 bool IconLockButton(const char* id, bool locked, const char* tooltip);
 bool IconActiveButton(const char* id, bool active, const char* tooltip);
 bool IconSnapshotButton(const char* id, const char* tooltip, float size = -1.0f,

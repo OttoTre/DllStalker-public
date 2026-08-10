@@ -28,7 +28,15 @@ bool IsComponentLike(Engine::UnityDumper& dumper, void* klass) {
 }
 
 void* GetCoreModuleImage() {
-    return Engine::Unity.FindImage("UnityEngine.CoreModule");
+    constexpr int kOnce = 1;
+    void* image = Engine::Unity.FindImageExact("UnityEngine.CoreModule", kOnce);
+    if (!image) {
+        image = Engine::Unity.FindImageExact("UnityEngine.CoreModule.dll", kOnce);
+    }
+    if (!image) {
+        image = Engine::Unity.FindImage("UnityEngine.CoreModule", kOnce);
+    }
+    return image;
 }
 
 void* GetClass(void* image, const char* ns, const char* name) {

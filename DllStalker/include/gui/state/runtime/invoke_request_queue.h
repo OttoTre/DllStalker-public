@@ -15,6 +15,8 @@
 namespace Gui::State
 {
 // Method Invoker UI state + the latest-result snapshot.
+// Owned via shared_ptr on ControlPanelSessionState so dispatcher jobs can
+// capture the queue sink without pinning the whole session (panel teardown).
 //   * pendingInvokeMethodIndex / argBuffers — UI-thread only; populated
 //     when the user opens the args popup and read while it's visible.
 //   * latest* fields — written by the runtime_invoke detour worker on
@@ -32,6 +34,9 @@ struct InvokeRequestQueue
     std::string            latestMethodParameters{};
     std::string            latestArgsDisplay{};
     std::atomic<int>       latestVersion = 0;
+    // GUI-thread drains this into history; set when a result is published
+    // so Methods-tab visibility is not required to record the audit.
+    bool                   pendingMethodAudit = false;
     // Same "never shown" convention as InspectorNavigationFeedback::kStatusNeverShown:
     // a value older than any real sample so toast freshness checks hide the
     // banner until the GUI thread stamps a real time. Stays float because the

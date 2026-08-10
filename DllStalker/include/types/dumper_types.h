@@ -38,10 +38,13 @@ struct MethodInfo {
     std::string name;
     std::string returnType;
     std::string parameters;             // human-readable display string ("3 args (jit)")
-    uintptr_t   address = 0;            // RVA on IL2CPP, JIT-compiled fn pointer on Mono. Display only.
+    // Native method pointer for display / MinHook: IL2CPP =
+    // il2cpp_method_get_pointer (or MethodInfo[0] fallback); Mono =
+    // mono_compile_method JIT address. Absolute VA — not a module-relative RVA.
+    uintptr_t   address = 0;
     // Method Invoker support. engineHandle is the runtime's MethodInfo* /
     // MonoMethod* pointer — what fnRuntimeInvoke actually wants. Stored
-    // separately because `address` carries display data (RVA / JIT addr).
+    // separately because `address` is the callable native pointer (display).
     void*                       engineHandle = nullptr;
     std::vector<MethodParam>    paramTypes{};
     bool                        isStatic     = false;
