@@ -14,7 +14,12 @@ InvokeParamSupport ClassifyInvokeParam(const MethodParam& param) {
     }
 
     using Cat = Types::TypeCategory;
-    switch (Types::GetCategory(param.typeName)) {
+    const Cat cat = Types::GetCategory(param.typeName);
+    if (Types::IsInlineValueStruct(cat)) {
+        return InvokeParamSupport::InlineStruct;
+    }
+
+    switch (cat) {
     case Cat::I1:
     case Cat::I2:
     case Cat::I4:

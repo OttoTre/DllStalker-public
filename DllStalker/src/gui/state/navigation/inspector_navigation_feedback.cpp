@@ -6,7 +6,8 @@
 
 namespace Gui::State
 {
-void InspectorNavigationFeedback::MarkStatus(const char* message, double nowSeconds) {
+void InspectorNavigationFeedback::MarkStatus(const char* message, double nowSeconds,
+                                            NavigationStatusKind kind) {
     if (!message) {
         statusMessage[0] = '\0';
     }
@@ -14,6 +15,7 @@ void InspectorNavigationFeedback::MarkStatus(const char* message, double nowSeco
         strncpy_s(statusMessage, sizeof(statusMessage), message, _TRUNCATE);
     }
     statusUpdatedAtSec = nowSeconds;
+    statusKind         = kind;
 }
 
 bool InspectorNavigationFeedback::IsStatusFresh(double nowSeconds, double maxAgeSeconds) const {

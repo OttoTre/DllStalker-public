@@ -6,6 +6,7 @@
 
 #include "gui/session_state.h"
 #include "gui/state/fields/field_snapshot_model.h"
+#include "gui/state/runtime/session_persist.h"
 
 #include "types/memory_guard.h"
 #include "types/type_classifier.h"
@@ -222,6 +223,7 @@ FieldWatchModel::ToggleResult FieldWatchModel::Toggle(ControlPanelSessionState& 
     const NavigationSnapshot currentSnap = state.CaptureNavigationSnapshot("");
     const std::string fieldKey           = FieldKeyFromInfo(field);
 
+    bool removed = false;
     {
         std::lock_guard<std::mutex> lock(entriesMutex);
         for (auto it = entries.begin(); it != entries.end(); ++it) {
@@ -230,13 +232,18 @@ FieldWatchModel::ToggleResult FieldWatchModel::Toggle(ControlPanelSessionState& 
                 activeCount.store(entries.size(), std::memory_order_relaxed);
                 EnsureValidPlotSelectionLocked();
                 NotifySampler();
-                return ToggleResult::Removed;
+                removed = true;
+                break;
             }
         }
 
-        if (entries.size() >= kMaxEntries) {
+        if (!removed && entries.size() >= kMaxEntries) {
             return ToggleResult::RejectedCap;
         }
+    }
+    if (removed) {
+        SessionPersist::SaveWatches(*this);
+        return ToggleResult::Removed;
     }
 
     uintptr_t baseAddress = 0;
@@ -263,36 +270,45 @@ FieldWatchModel::ToggleResult FieldWatchModel::Toggle(ControlPanelSessionState& 
     entry.plot.Clear();
     const uint32_t newId = entry.id;
 
-    std::lock_guard<std::mutex> lock(entriesMutex);
-    if (entries.size() >= kMaxEntries) {
-        return ToggleResult::RejectedCap;
+    {
+        std::lock_guard<std::mutex> lock(entriesMutex);
+        if (entries.size() >= kMaxEntries) {
+            return ToggleResult::RejectedCap;
+        }
+        entries.push_back(std::move(entry));
+        activeCount.store(entries.size(), std::memory_order_relaxed);
+        if (entries.back().plotEnabled) {
+            selectedPlotWatchId = newId;
+        }
+        NotifySampler();
     }
-    entries.push_back(std::move(entry));
-    activeCount.store(entries.size(), std::memory_order_relaxed);
-    if (entries.back().plotEnabled) {
-        selectedPlotWatchId = newId;
-    }
-    NotifySampler();
+    SessionPersist::SaveWatches(*this);
     return ToggleResult::Added;
 }
 
 void FieldWatchModel::Remove(uint32_t id) {
-    std::lock_guard<std::mutex> lock(entriesMutex);
-    entries.erase(
-        std::remove_if(entries.begin(), entries.end(),
-                       [id](const WatchedField& e) { return e.id == id; }),
-        entries.end());
-    activeCount.store(entries.size(), std::memory_order_relaxed);
-    EnsureValidPlotSelectionLocked();
-    NotifySampler();
+    {
+        std::lock_guard<std::mutex> lock(entriesMutex);
+        entries.erase(
+            std::remove_if(entries.begin(), entries.end(),
+                           [id](const WatchedField& e) { return e.id == id; }),
+            entries.end());
+        activeCount.store(entries.size(), std::memory_order_relaxed);
+        EnsureValidPlotSelectionLocked();
+        NotifySampler();
+    }
+    SessionPersist::SaveWatches(*this);
 }
 
 void FieldWatchModel::Clear() {
-    std::lock_guard<std::mutex> lock(entriesMutex);
-    entries.clear();
-    activeCount.store(0, std::memory_order_relaxed);
-    selectedPlotWatchId = 0;
-    NotifySampler();
+    {
+        std::lock_guard<std::mutex> lock(entriesMutex);
+        entries.clear();
+        activeCount.store(0, std::memory_order_relaxed);
+        selectedPlotWatchId = 0;
+        NotifySampler();
+    }
+    SessionPersist::SaveWatches(*this);
 }
 
 size_t FieldWatchModel::CountPlottable() const {

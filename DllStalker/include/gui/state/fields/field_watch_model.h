@@ -24,6 +24,8 @@ struct ControlPanelSessionState;
 
 namespace Gui::State
 {
+struct SessionPersist;
+
 enum class WatchPlotMode { EverySample, OnChange };
 
 struct FieldPlotSeries {
@@ -103,6 +105,8 @@ struct FieldWatchModel {
     void   EnsureValidPlotSelection();
 
 private:
+    friend struct SessionPersist;
+
     const WatchedField* FindLocked(uint32_t id) const;
     WatchedField*       FindLocked(uint32_t id);
     void                EnsureValidPlotSelectionLocked();

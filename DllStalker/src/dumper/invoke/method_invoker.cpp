@@ -6,12 +6,15 @@
 
 #include <algorithm>
 #include <cstdio>
+#include <cstring>
 #include <string_view>
+#include <vector>
 
 #include "dumper/catalog/object_identity.h"
 #include "types/memory_guard.h"
 #include "types/type_classifier.h"
 #include "types/value_decoder.h"
+#include "types/value_writer.h"
 
 namespace Engine::Dumper
 {
@@ -35,14 +38,30 @@ struct PrimitiveSlot {
     } value{};
 };
 
+// By-ref valuetype slot for allowlisted Unity inline structs (max 16 bytes:
+// VEC4 / QUAT / COLOR / RECT). Passed as args[i] = &bytes like Transform
+// set_localPosition.
+struct InlineStructSlot {
+    alignas(4) uint8_t bytes[16]{};
+};
+
 // Returns a brief, GUI-friendly preview of a runtime_invoke return value.
 // The dispatch mirrors DecodeFieldValue but works against an already-read
 // pointer (runtime_invoke hands back a void* directly, not an address-of).
-std::string FormatReturnDisplay(std::string_view returnType, void* rawReturn) {
+// Enums: use underlying (not GetCategory on the dotted enum name → PTR).
+std::string FormatReturnDisplay(std::string_view returnType,
+                                bool returnIsEnum,
+                                std::string_view returnUnderlyingType,
+                                void* rawReturn) {
     using Cat = Types::TypeCategory;
-    const auto cat = Types::GetCategory(returnType);
+    const std::string_view decodeType = returnIsEnum
+        ? (returnUnderlyingType.empty() ? std::string_view("System.Int32") : returnUnderlyingType)
+        : returnType;
+    const auto cat = Types::GetCategory(decodeType);
 
-    if (cat == Cat::UNKNOWN && (returnType == "System.Void" || returnType == "void" || returnType == "Void")) {
+    if (!returnIsEnum
+        && cat == Cat::UNKNOWN
+        && (returnType == "System.Void" || returnType == "void" || returnType == "Void")) {
         return "void";
     }
     if (rawReturn == nullptr) {
@@ -51,8 +70,8 @@ std::string FormatReturnDisplay(std::string_view returnType, void* rawReturn) {
 
     // Reference / array / list returns: runtime_invoke gave us a managed
     // object pointer directly. Render the address; deeper inspection lives
-    // in the Walker.
-    if (cat == Cat::PTR || cat == Cat::ARRAY || cat == Cat::LIST) {
+    // in the Walker. Enums never take this path (boxed valuetype).
+    if (!returnIsEnum && (cat == Cat::PTR || cat == Cat::ARRAY || cat == Cat::LIST)) {
         char buf[64]; snprintf(buf, sizeof(buf), "0x%llX", reinterpret_cast<unsigned long long>(rawReturn));
         return buf;
     }
@@ -63,9 +82,175 @@ std::string FormatReturnDisplay(std::string_view returnType, void* rawReturn) {
     // Value-type returns are boxed by runtime_invoke.
     // Actual value data starts at +0x10 from the boxed object pointer.
     constexpr uintptr_t kBoxedDataOffset = 0x10;
-    return Decode::DecodeFieldValue(std::string(returnType),
+    return Decode::DecodeFieldValue(std::string(decodeType),
                                     reinterpret_cast<uintptr_t>(rawReturn) + kBoxedDataOffset,
                                     true);
+}
+
+// Typed payload for scripting. Same category honesty as field reads:
+// I8/U8 → String; PTR/ARRAY/LIST → ObjectPtr; inline structs → String display.
+// Enums: decode boxed underlying integer (I8/U8 → String) — never ObjectPtr.
+void FillTypedReturn(std::string_view returnType,
+                     bool returnIsEnum,
+                     std::string_view returnUnderlyingType,
+                     void* rawReturn,
+                     InvokeReturnValue& out) {
+    using Cat = Types::TypeCategory;
+    out = {};
+    const std::string_view decodeType = returnIsEnum
+        ? (returnUnderlyingType.empty() ? std::string_view("System.Int32") : returnUnderlyingType)
+        : returnType;
+    const auto cat = Types::GetCategory(decodeType);
+
+    if (!returnIsEnum
+        && cat == Cat::UNKNOWN
+        && (returnType == "System.Void" || returnType == "void" || returnType == "Void")) {
+        out.kind = InvokeReturnKind::Nil;
+        return;
+    }
+    if (rawReturn == nullptr) {
+        out.kind = InvokeReturnKind::Nil;
+        return;
+    }
+
+    if (!returnIsEnum && (cat == Cat::PTR || cat == Cat::ARRAY || cat == Cat::LIST)) {
+        out.kind = InvokeReturnKind::ObjectPtr;
+        out.objectPtr = reinterpret_cast<uintptr_t>(rawReturn);
+        return;
+    }
+    if (cat == Cat::STRING) {
+        out.kind = InvokeReturnKind::String;
+        out.stringValue = Decode::StripQuotesForFieldEdit(
+            Decode::DecodeManagedString(reinterpret_cast<uintptr_t>(&rawReturn)));
+        return;
+    }
+
+    // Boxed valuetype payload (same offset as FormatReturnDisplay).
+    constexpr uintptr_t kBoxedDataOffset = 0x10;
+    const uintptr_t boxedData = reinterpret_cast<uintptr_t>(rawReturn) + kBoxedDataOffset;
+
+    auto failAsDisplayString = [&]() {
+        out.kind = InvokeReturnKind::String;
+        out.stringValue = Decode::DecodeFieldValue(std::string(decodeType), boxedData, true);
+    };
+
+    switch (cat) {
+    case Cat::BOOLEAN: {
+        uint8_t v = 0;
+        if (!Memory::TryReadValue(boxedData, v)) {
+            failAsDisplayString();
+            return;
+        }
+        out.kind = InvokeReturnKind::Boolean;
+        out.booleanValue = v != 0;
+        return;
+    }
+    case Cat::I1: {
+        int8_t v = 0;
+        if (!Memory::TryReadValue(boxedData, v)) {
+            failAsDisplayString();
+            return;
+        }
+        out.kind = InvokeReturnKind::Integer;
+        out.integerValue = v;
+        return;
+    }
+    case Cat::I2: {
+        int16_t v = 0;
+        if (!Memory::TryReadValue(boxedData, v)) {
+            failAsDisplayString();
+            return;
+        }
+        out.kind = InvokeReturnKind::Integer;
+        out.integerValue = v;
+        return;
+    }
+    case Cat::I4: {
+        int32_t v = 0;
+        if (!Memory::TryReadValue(boxedData, v)) {
+            failAsDisplayString();
+            return;
+        }
+        out.kind = InvokeReturnKind::Integer;
+        out.integerValue = v;
+        return;
+    }
+    case Cat::I8: {
+        int64_t v = 0;
+        if (!Memory::TryReadValue(boxedData, v)) {
+            failAsDisplayString();
+            return;
+        }
+        out.kind = InvokeReturnKind::String;
+        out.stringValue = std::to_string(v);
+        return;
+    }
+    case Cat::U1: {
+        uint8_t v = 0;
+        if (!Memory::TryReadValue(boxedData, v)) {
+            failAsDisplayString();
+            return;
+        }
+        out.kind = InvokeReturnKind::Unsigned;
+        out.unsignedValue = v;
+        return;
+    }
+    case Cat::U2: {
+        uint16_t v = 0;
+        if (!Memory::TryReadValue(boxedData, v)) {
+            failAsDisplayString();
+            return;
+        }
+        out.kind = InvokeReturnKind::Unsigned;
+        out.unsignedValue = v;
+        return;
+    }
+    case Cat::U4: {
+        uint32_t v = 0;
+        if (!Memory::TryReadValue(boxedData, v)) {
+            failAsDisplayString();
+            return;
+        }
+        out.kind = InvokeReturnKind::Unsigned;
+        out.unsignedValue = v;
+        return;
+    }
+    case Cat::U8: {
+        uint64_t v = 0;
+        if (!Memory::TryReadValue(boxedData, v)) {
+            failAsDisplayString();
+            return;
+        }
+        out.kind = InvokeReturnKind::String;
+        out.stringValue = std::to_string(v);
+        return;
+    }
+    case Cat::R4: {
+        float v = 0.f;
+        if (!Memory::TryReadValue(boxedData, v)) {
+            failAsDisplayString();
+            return;
+        }
+        out.kind = InvokeReturnKind::Number;
+        out.numberValue = static_cast<double>(v);
+        return;
+    }
+    case Cat::R8: {
+        double v = 0.0;
+        if (!Memory::TryReadValue(boxedData, v)) {
+            failAsDisplayString();
+            return;
+        }
+        out.kind = InvokeReturnKind::Number;
+        out.numberValue = v;
+        return;
+    }
+    default:
+        // Inline structs / unknown: string preview only (no typed ScriptValue struct).
+        // Enums must never fall through to ObjectPtr — string preview if underlying odd.
+        failAsDisplayString();
+        return;
+    }
 }
 
 bool MarshalPrimitiveArg(Types::TypeCategory cat,
@@ -105,6 +290,54 @@ bool MarshalPrimitiveArg(Types::TypeCategory cat,
         error = "Arg " + std::to_string(argIndex) + " (" + std::string(typeLabel) + "): " + e.what();
         return false;
     }
+}
+
+bool MarshalInlineStructArg(Types::TypeCategory cat,
+                            const std::string& input,
+                            InlineStructSlot& slot,
+                            void*& outArg,
+                            std::string& error,
+                            size_t argIndex,
+                            std::string_view typeLabel) {
+    using Cat = Types::TypeCategory;
+    std::string parseError;
+    auto fail = [&](const char* fallback) {
+        error = "Arg " + std::to_string(argIndex) + " (" + std::string(typeLabel) + "): "
+              + (parseError.empty() ? fallback : parseError);
+        return false;
+    };
+
+    if (cat == Cat::COLOR32) {
+        std::vector<uint8_t> bytes;
+        if (!Write::ParseByteComponents(input, 4, bytes, &parseError)) {
+            return fail("invalid Color32 components");
+        }
+        std::memcpy(slot.bytes, bytes.data(), 4);
+        outArg = slot.bytes;
+        return true;
+    }
+
+    size_t floatCount = 0;
+    switch (cat) {
+    case Cat::VEC2: floatCount = 2; break;
+    case Cat::VEC3: floatCount = 3; break;
+    case Cat::VEC4:
+    case Cat::QUAT:
+    case Cat::COLOR:
+    case Cat::RECT: floatCount = 4; break;
+    default:
+        error = "Arg " + std::to_string(argIndex) + ": type '" + std::string(typeLabel)
+              + "' is not an allowlisted inline struct";
+        return false;
+    }
+
+    std::vector<float> values;
+    if (!Write::ParseFloatComponents(input, floatCount, values, &parseError)) {
+        return fail("invalid float components");
+    }
+    std::memcpy(slot.bytes, values.data(), floatCount * sizeof(float));
+    outArg = slot.bytes;
+    return true;
 }
 } // namespace
 
@@ -155,6 +388,8 @@ InvokeResult MethodInvoker::InvokeMethod(const MethodInfo& method,
     // use-after-free. Reserve up front.
     std::vector<PrimitiveSlot> primSlots;
     primSlots.reserve(method.paramTypes.size());
+    std::vector<InlineStructSlot> structSlots;
+    structSlots.reserve(method.paramTypes.size());
     std::vector<void*> args;
     args.reserve(method.paramTypes.size());
 
@@ -170,10 +405,22 @@ InvokeResult MethodInvoker::InvokeMethod(const MethodInfo& method,
             return result;
         }
 
-        // "null" literal works for managed reference types.
+        // "null" only for managed references (PTR / STRING). Valuetypes
+        // (InlineStruct, primitives, enums) use by-ref ABI and cannot be null.
         if (input == "null") {
-            args.push_back(nullptr);
-            continue;
+            const Cat nullCat = Types::GetCategory(typeName);
+            if (nullCat == Cat::PTR || nullCat == Cat::STRING) {
+                args.push_back(nullptr);
+                continue;
+            }
+            if (Types::IsInlineValueStruct(nullCat)) {
+                result.error = "Arg " + std::to_string(i)
+                    + ": valuetype params cannot be null";
+                return result;
+            }
+            result.error = "Arg " + std::to_string(i)
+                + ": primitive params expect a value";
+            return result;
         }
 
         if (isEnumParam) {
@@ -223,6 +470,17 @@ InvokeResult MethodInvoker::InvokeMethod(const MethodInfo& method,
                 return result;
             }
             args.push_back(managed);
+            continue;
+        }
+
+        if (Types::IsInlineValueStruct(cat)) {
+            structSlots.emplace_back();
+            InlineStructSlot& slot = structSlots.back();
+            void* argPtr = nullptr;
+            if (!MarshalInlineStructArg(cat, input, slot, argPtr, result.error, i, typeName)) {
+                return result;
+            }
+            args.push_back(argPtr);
             continue;
         }
 
@@ -287,7 +545,10 @@ InvokeResult MethodInvoker::InvokeMethod(const MethodInfo& method,
     }
 
     result.succeeded     = true;
-    result.returnDisplay = FormatReturnDisplay(method.returnType, rawReturn);
+    result.returnDisplay = FormatReturnDisplay(method.returnType, method.returnIsEnum,
+                                               method.returnUnderlyingType, rawReturn);
+    FillTypedReturn(method.returnType, method.returnIsEnum, method.returnUnderlyingType,
+                    rawReturn, result.typedReturn);
     return result;
 }
 } // namespace Engine::Dumper

@@ -12,6 +12,7 @@ enum class InvokeParamSupport {
     Primitive,
     Enum,
     Reference,
+    InlineStruct, // Allowlisted Unity value structs (VEC2/3/4, QUAT, COLOR, COLOR32, RECT)
     Unsupported,
 };
 

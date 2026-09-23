@@ -34,9 +34,23 @@ struct EnumLiteral {
     int64_t     value = 0;
 };
 
+// Names-only method row for the sidebar Methods index. Not MethodInfo:
+// no JIT address, engineHandle, or type-name enrichment.
+struct MethodNameRow {
+    std::string name;
+    bool        isStatic = false;
+    int         paramCount = -1;       // -1 when unknown
+    bool        paramCountKnown = false;
+};
+
 struct MethodInfo {
     std::string name;
     std::string returnType;
+    // Return-enum honesty (mirrors MethodParam): dotted enum type names hit
+    // the PTR heuristic in GetCategory; invoke/scripting must use these.
+    bool        returnIsEnum = false;
+    void*       returnEnumKlass = nullptr;
+    std::string returnUnderlyingType{};   // e.g. "System.Int32" when returnIsEnum
     std::string parameters;             // human-readable display string ("3 args (jit)")
     // Native method pointer for display / MinHook: IL2CPP =
     // il2cpp_method_get_pointer (or MethodInfo[0] fallback); Mono =
@@ -63,16 +77,46 @@ struct FieldInfo {
     std::string valueDisplay;
     bool        isEnum = false;
     void*       enumKlass = nullptr;
+    // Homogeneous ARRAY/LIST element klass from CollectionView stride
+    // (fnClassGetElementClass). Not enumKlass — enums already reuse that.
+    void*       elementKlass = nullptr;
     std::string underlyingType{};
+};
+
+// Engine-neutral typed invoke return (no scripting/ types). Honesty matches
+// field reads / FormatReturnDisplay: void/null → Nil; I8/U8 → String;
+// enums → underlying Integer/Unsigned/String (never ObjectPtr);
+// PTR/ARRAY/LIST → ObjectPtr (raw managed pointer); inline structs → String.
+enum class InvokeReturnKind : uint8_t {
+    None = 0,  // unset / not filled
+    Nil,       // void or null reference
+    Boolean,
+    Integer,
+    Unsigned,
+    Number,
+    String,
+    ObjectPtr,
+};
+
+struct InvokeReturnValue {
+    InvokeReturnKind kind = InvokeReturnKind::None;
+    bool             booleanValue = false;
+    int64_t          integerValue = 0;
+    uint64_t         unsignedValue = 0;
+    double           numberValue = 0.0;
+    std::string      stringValue;
+    uintptr_t        objectPtr = 0;
 };
 
 // Result of a Method Invoker run. `error` is empty on success; on a managed
 // exception it contains "<ExceptionClass>: <message>". `returnDisplay` is
 // always populated with a short, GUI-friendly preview of the return value.
+// `typedReturn` is filled on success for scripting (GUI may ignore it).
 struct InvokeResult {
-    bool        succeeded     = false;
-    std::string error{};
-    std::string returnDisplay = "void";
+    bool              succeeded     = false;
+    std::string       error{};
+    std::string       returnDisplay = "void";
+    InvokeReturnValue typedReturn{};
 };
 
 } // namespace Engine

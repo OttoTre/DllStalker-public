@@ -37,7 +37,7 @@ struct ValueSearchParams {
     bool        chipBool   = true;  // always on (no UI chip)
     bool        chipEnum   = true;  // always on (no UI chip)
     bool        chipPtr    = true;
-    bool        chipDeep   = false; // interiors + Follow + Array/List expand
+    bool        chipDeep   = true;  // interiors + Follow + Array/List expand; default on
     bool        nameMatchStrict  = false; // ~ fuzzy / = strict
     bool        valueMatchStrict = true;
     bool        drillMode  = false;
@@ -53,9 +53,12 @@ struct ValueSearchScanResult {
 };
 
 constexpr size_t kValueSearchHitCap = 500;
+// Search/Drill *scan* expand bound only. Resolve/nav (hit → inspector / Drill)
+// uses an index-aware GetCollectionView bound so elements past this cap resolve.
 constexpr size_t kValueSearchMaxCollectionElements = 64;
 constexpr size_t kValueSearchMaxElementInteriorFields = 32;
 constexpr size_t kValueSearchMaxPtrFieldsFollowed = 16;
+constexpr size_t kValueSearchMaxPtrFollowDepth = 2;
 } // namespace Engine
 
 #endif // ENABLE_DUMPER

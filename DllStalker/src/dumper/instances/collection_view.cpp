@@ -92,6 +92,33 @@ bool ParseCollectionElementName(const std::string& fieldName,
     return true;
 }
 
+bool ParseSynthesizedFieldsElementIndex(const std::string& fieldName, size_t& outIndex) {
+    // Fields collection rows: "[3]". open==0 is valid (unlike ParseCollectionElementName).
+    if (fieldName.size() >= 3 && fieldName.front() == '[' && fieldName.back() == ']') {
+        const char* begin = fieldName.data() + 1;
+        const char* end = fieldName.data() + fieldName.size() - 1;
+        if (begin < end && fieldName.find('[', 1) == std::string::npos) {
+            size_t index = 0;
+            auto [ptr, ec] = std::from_chars(begin, end, index);
+            if (ec == std::errc{} && ptr == end) {
+                outIndex = index;
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
+bool IsSynthesizedCollectionElementName(const std::string& fieldName) {
+    size_t index = 0;
+    if (ParseSynthesizedFieldsElementIndex(fieldName, index)) {
+        return true;
+    }
+    // Search/Drill: "items[3]".
+    std::string container;
+    return ParseCollectionElementName(fieldName, container, index);
+}
+
 CollectionView::CollectionView(UnityResolver& resolver, const ObjectIdentity& identity)
     : m_resolver(resolver)
     , m_identity(identity)
@@ -202,9 +229,209 @@ void* CollectionView::TryResolveElementKlass(const FieldInfo& field) const {
     return ElementKlassFromArrayBase(arrayBase);
 }
 
+bool CollectionView::IsAddressInLiveElementBuffer(const FieldInfo& collectionField,
+                                                 uintptr_t elementAddress,
+                                                 std::string* error) const {
+    auto setError = [&](const char* msg) {
+        if (error) {
+            *error = msg;
+        }
+    };
+
+    if (elementAddress == 0) {
+        setError("Collection element address is null");
+        return false;
+    }
+    if (!collectionField.hasValue || collectionField.valueAddress == 0) {
+        setError("Collection field has no readable address");
+        return false;
+    }
+
+    const auto category = Types::GetCategory(collectionField.type);
+    if (category != Types::TypeCategory::ARRAY && category != Types::TypeCategory::LIST) {
+        setError("Owning field is not an Array/List");
+        return false;
+    }
+
+    uintptr_t arrayBase = 0;
+    size_t length = 0;
+
+    if (category == Types::TypeCategory::ARRAY) {
+        if (!Memory::TryReadValue<uintptr_t>(collectionField.valueAddress, arrayBase) || arrayBase == 0) {
+            setError("Array is null or unreadable");
+            return false;
+        }
+        if (!Memory::TryReadValue(arrayBase + Engine::UnityArrayLayout::LengthOffset, length)) {
+            setError("Array length unreadable");
+            return false;
+        }
+    }
+    else {
+        uintptr_t listObj = 0;
+        if (!Memory::TryReadValue<uintptr_t>(collectionField.valueAddress, listObj) || listObj == 0) {
+            setError("List is null or unreadable");
+            return false;
+        }
+        void* listKlass = m_identity.KlassFromInstance(reinterpret_cast<void*>(listObj));
+        if (!listKlass || !m_resolver.module.exports.fnGetFieldFromName
+            || !m_resolver.module.exports.fnGetFieldOffset) {
+            setError("List klass / fields unresolved");
+            return false;
+        }
+
+        void* itemsField = m_resolver.module.exports.fnGetFieldFromName(listKlass, "_items");
+        void* sizeField  = m_resolver.module.exports.fnGetFieldFromName(listKlass, "_size");
+        if (!itemsField || !sizeField) {
+            setError("List _items/_size fields missing");
+            return false;
+        }
+
+        const size_t itemsOffset = m_resolver.module.exports.fnGetFieldOffset(itemsField);
+        const size_t sizeOffset  = m_resolver.module.exports.fnGetFieldOffset(sizeField);
+
+        if (!Memory::TryReadValue<uintptr_t>(listObj + itemsOffset, arrayBase) || arrayBase == 0) {
+            setError("List _items is null or unreadable");
+            return false;
+        }
+
+        int32_t logicalSize = 0;
+        if (!Memory::TryReadValue<int32_t>(listObj + sizeOffset, logicalSize) || logicalSize < 0) {
+            setError("List _size unreadable");
+            return false;
+        }
+
+        size_t allocated = 0;
+        if (!Memory::TryReadValue(arrayBase + Engine::UnityArrayLayout::LengthOffset, allocated)) {
+            setError("List backing array length unreadable");
+            return false;
+        }
+        length = (std::min)(static_cast<size_t>(logicalSize), allocated);
+    }
+
+    if (length == 0) {
+        setError("Collection is empty (shrunk or cleared)");
+        return false;
+    }
+    if (length > kMaxFindObjectsResultLength) {
+        setError("Collection length out of safe bounds");
+        return false;
+    }
+
+    constexpr size_t kReferenceSlotSize = sizeof(void*);
+    size_t elementSize = kReferenceSlotSize;
+
+    void* elementKlass = nullptr;
+    if (m_resolver.module.exports.fnClassGetElementClass) {
+        void* arrayKlass = m_identity.KlassFromInstance(reinterpret_cast<void*>(arrayBase));
+        if (arrayKlass) {
+            elementKlass = m_resolver.module.exports.fnClassGetElementClass(arrayKlass);
+        }
+    }
+
+    if (elementKlass && m_resolver.module.exports.fnClassIsValueType
+        && m_resolver.module.exports.fnClassIsValueType(elementKlass)) {
+        if (m_resolver.module.exports.fnClassValueSize) {
+            uint32_t align = 0;
+            const int32_t vsz = m_resolver.module.exports.fnClassValueSize(elementKlass, &align);
+            if (vsz > 0) {
+                elementSize = static_cast<size_t>(vsz);
+            }
+        }
+    }
+
+    const uintptr_t elementsBase = arrayBase + Engine::UnityArrayLayout::ElementsOffset;
+    const uintptr_t elementsEnd  = elementsBase + static_cast<uintptr_t>(length) * elementSize;
+    if (elementAddress < elementsBase || elementAddress >= elementsEnd) {
+        setError("Element address out of live collection range (collection may have shrunk or moved)");
+        return false;
+    }
+    if (((elementAddress - elementsBase) % elementSize) != 0) {
+        setError("Element address is not aligned to a collection slot");
+        return false;
+    }
+    return true;
+}
+
+bool CollectionView::TryWriteListLogicalSize(const FieldInfo& collectionField,
+                                             std::string* error) const {
+    auto setError = [&](const char* msg) {
+        if (error) {
+            *error = msg;
+        }
+    };
+
+    if (!collectionField.hasValue || collectionField.valueAddress == 0
+        || Types::GetCategory(collectionField.type) != Types::TypeCategory::LIST) {
+        setError("collection unreadable");
+        return false;
+    }
+
+    uintptr_t listObj = 0;
+    if (!Memory::TryReadValue<uintptr_t>(collectionField.valueAddress, listObj) || listObj == 0) {
+        setError("collection unreadable");
+        return false;
+    }
+
+    void* listKlass = m_identity.KlassFromInstance(reinterpret_cast<void*>(listObj));
+    if (!listKlass || !m_resolver.module.exports.fnGetFieldFromName
+        || !m_resolver.module.exports.fnGetFieldOffset) {
+        setError("collection unreadable");
+        return false;
+    }
+
+    void* itemsField = m_resolver.module.exports.fnGetFieldFromName(listKlass, "_items");
+    void* sizeField  = m_resolver.module.exports.fnGetFieldFromName(listKlass, "_size");
+    if (!itemsField || !sizeField) {
+        setError("collection unreadable");
+        return false;
+    }
+
+    const size_t itemsOffset = m_resolver.module.exports.fnGetFieldOffset(itemsField);
+    const size_t sizeOffset  = m_resolver.module.exports.fnGetFieldOffset(sizeField);
+
+    uintptr_t arrayBase = 0;
+    if (!Memory::TryReadValue<uintptr_t>(listObj + itemsOffset, arrayBase) || arrayBase == 0) {
+        setError("collection unreadable");
+        return false;
+    }
+
+    int32_t logicalSize = 0;
+    if (!Memory::TryReadValue<int32_t>(listObj + sizeOffset, logicalSize) || logicalSize < 0) {
+        setError("collection unreadable");
+        return false;
+    }
+
+    size_t allocated = 0;
+    if (!Memory::TryReadValue(arrayBase + Engine::UnityArrayLayout::LengthOffset, allocated)) {
+        setError("collection unreadable");
+        return false;
+    }
+
+    const size_t currentSize = static_cast<size_t>(logicalSize);
+    if (allocated == 0 || currentSize >= allocated) {
+        setError("no spare capacity");
+        return false;
+    }
+    if (currentSize >= kMaxFindObjectsResultLength) {
+        setError("too many elements");
+        return false;
+    }
+
+    const int32_t newSize = logicalSize + 1;
+    if (!Memory::TryWriteValue<int32_t>(listObj + sizeOffset, newSize)) {
+        setError("write failed");
+        return false;
+    }
+    return true;
+}
+
 std::vector<FieldInfo> CollectionView::GetCollectionView(const FieldInfo& field,
-                                                         size_t maxElements) const {
+                                                         size_t maxElements,
+                                                         bool* outEmptyButReadable) const {
     std::vector<FieldInfo> view;
+    if (outEmptyButReadable) {
+        *outEmptyButReadable = false;
+    }
 
     if (!field.hasValue || field.valueAddress == 0) return view;
 
@@ -268,7 +495,14 @@ std::vector<FieldInfo> CollectionView::GetCollectionView(const FieldInfo& field,
         elementTypeName = ExtractListElementName(field.type);
     }
 
-    if (length == 0 || length > kMaxFindObjectsResultLength) {
+    if (length > kMaxFindObjectsResultLength) {
+        return view;
+    }
+    // Readable header + logical length 0: empty-success (no dummy [i] rows).
+    if (length == 0) {
+        if (outEmptyButReadable) {
+            *outEmptyButReadable = true;
+        }
         return view;
     }
     // Search/Drill: stop synthesize+decode at the caller bound. Inspector
@@ -358,10 +592,23 @@ std::vector<FieldInfo> CollectionView::GetCollectionView(const FieldInfo& field,
         row.hasValue       = true;
         row.isEnum         = isEnum;
         row.enumKlass      = enumKlass;
+        row.elementKlass   = elementKlass;
         row.underlyingType = underlyingType;
-        row.valueDisplay   = Decode::DecodeFieldValue(decodeType, slotAddress, true);
-        if (row.valueDisplay == "null") {
-            row.valueDisplay = "[null]";
+        const bool customValueTypeDisplay =
+            elementKlass
+            && !isEnum
+            && m_resolver.module.exports.fnClassIsValueType
+            && m_resolver.module.exports.fnClassIsValueType(elementKlass)
+            && !Types::IsInlineValueStruct(Types::GetCategory(elementTypeName));
+        if (customValueTypeDisplay) {
+            // Do not PTR-decode the first 8 slot bytes (GetCategory scar).
+            row.valueDisplay = "-";
+        }
+        else {
+            row.valueDisplay = Decode::DecodeFieldValue(decodeType, slotAddress, true);
+            if (row.valueDisplay == "null") {
+                row.valueDisplay = "[null]";
+            }
         }
         view.push_back(std::move(row));
     }

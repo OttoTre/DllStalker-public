@@ -10,6 +10,7 @@
 #include <limits>
 #include <string>
 #include <type_traits>
+#include <vector>
 
 #include "types/dumper_types.h"
 #include "types/memory_guard.h"
@@ -112,6 +113,13 @@ bool ParseAndWrite(uintptr_t addr, const std::string& input, std::string* err) {
 }
 
 bool SetFieldValue(const Engine::FieldInfo& field, const std::string& newValue, std::string* error = nullptr);
+
+// Component parsers shared with method-invoke marshalling for allowlisted
+// Unity inline structs (VEC2/3/4, QUAT, COLOR, COLOR32, RECT).
+bool ParseFloatComponents(const std::string& input, size_t expected,
+                          std::vector<float>& out, std::string* error = nullptr);
+bool ParseByteComponents(const std::string& input, size_t expected,
+                         std::vector<uint8_t>& out, std::string* error = nullptr);
 } // namespace Engine::Write
 
 #endif // ENABLE_DUMPER

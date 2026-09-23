@@ -25,6 +25,7 @@ struct AsyncLoaderSet
     std::atomic<bool> instanceSearchInProgress = false;
     std::atomic<bool> compareInProgress        = false;
     std::atomic<bool> valueSearchInProgress    = false;
+    std::atomic<bool> methodIndexInProgress    = false;
 
     // Workers. Must remain last for safe RAII teardown.
     std::jthread imageLoadThread{};
@@ -34,6 +35,7 @@ struct AsyncLoaderSet
     std::jthread instanceSearchThread{};
     std::jthread compareThread{};
     std::jthread valueSearchThread{};
+    std::jthread methodIndexThread{};
 };
 } // namespace Gui::State
 

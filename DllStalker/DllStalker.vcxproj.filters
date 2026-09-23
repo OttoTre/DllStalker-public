@@ -214,6 +214,9 @@
     <Filter Include="Pliki dokumentów\docs">
       <UniqueIdentifier>{B7C8D9E0-F1A2-4356-8790-ABCDEF012345}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Pliki dokumentów\docs\overview">
+      <UniqueIdentifier>{052fcaf3-2f2a-44de-892a-7a5485375ca7}</UniqueIdentifier>
+    </Filter>
     <Filter Include="Pliki dokumentów\docs\examples">
       <UniqueIdentifier>{C8D9E0F1-A2B3-4567-8901-234567890ABC}</UniqueIdentifier>
     </Filter>
@@ -237,6 +240,18 @@
     </Filter>
     <Filter Include="Pliki dokumentów\docs\examples\packages\metadata-lookup">
       <UniqueIdentifier>{FAFF0CCF-969E-40C7-A163-C9A4D3BA0B8C}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Pliki dokumentów\docs\scripting">
+      <UniqueIdentifier>{D5E6F7A8-B9C0-1234-5678-90ABCDEF0123}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Pliki dokumentów\docs\scripting\archive">
+      <UniqueIdentifier>{E6F7A8B9-C0D1-2345-6789-0ABCDEF01234}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Pliki dokumentów\docs\scripting\archive\sprints">
+      <UniqueIdentifier>{F7A8B9C0-D1E2-3456-7890-ABCDEF012345}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Pliki źródłowe\presets\sara">
+      <UniqueIdentifier>{35599bb0-7ab8-4574-aefb-183b72e08ebe}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
   <ItemGroup>
@@ -474,6 +489,9 @@
     <ClInclude Include="include\gui\views\sidebar\search_browser.h">
       <Filter>Pliki nagłówkowe\gui\views\sidebar</Filter>
     </ClInclude>
+    <ClInclude Include="include\gui\views\sidebar\methods_browser.h">
+      <Filter>Pliki nagłówkowe\gui\views\sidebar</Filter>
+    </ClInclude>
     <ClInclude Include="include\gui\views\sidebar\class_label_lookup.h">
       <Filter>Pliki nagłówkowe\gui\views\sidebar</Filter>
     </ClInclude>
@@ -589,6 +607,12 @@
       <Filter>Pliki nagłówkowe\gui\state\runtime</Filter>
     </ClInclude>
     <ClInclude Include="include\gui\state\runtime\script_model.h">
+      <Filter>Pliki nagłówkowe\gui\state\runtime</Filter>
+    </ClInclude>
+    <ClInclude Include="include\gui\state\runtime\method_search_model.h">
+      <Filter>Pliki nagłówkowe\gui\state\runtime</Filter>
+    </ClInclude>
+    <ClInclude Include="include\gui\state\runtime\session_persist.h">
       <Filter>Pliki nagłówkowe\gui\state\runtime</Filter>
     </ClInclude>
     <ClInclude Include="include\gui\state\transform\transform_internal.h">
@@ -779,6 +803,15 @@
     <ClCompile Include="src\presets\preset_registry.cpp">
       <Filter>Pliki źródłowe\presets</Filter>
     </ClCompile>
+    <ClCompile Include="src\presets\dane\dane.cpp">
+      <Filter>Pliki źródłowe\presets\dane</Filter>
+    </ClCompile>
+    <ClCompile Include="src\presets\knight\knight.cpp">
+      <Filter>Pliki źródłowe\presets\knight</Filter>
+    </ClCompile>
+    <ClCompile Include="src\presets\subjects\subjects.cpp">
+      <Filter>Pliki źródłowe\presets\subjects</Filter>
+    </ClCompile>
     <ClCompile Include="src\unity_dumper.cpp">
       <Filter>Pliki źródłowe</Filter>
     </ClCompile>
@@ -825,6 +858,9 @@
       <Filter>Pliki źródłowe\gui\views\sidebar</Filter>
     </ClCompile>
     <ClCompile Include="src\gui\views\sidebar\search_browser.cpp">
+      <Filter>Pliki źródłowe\gui\views\sidebar</Filter>
+    </ClCompile>
+    <ClCompile Include="src\gui\views\sidebar\methods_browser.cpp">
       <Filter>Pliki źródłowe\gui\views\sidebar</Filter>
     </ClCompile>
     <ClCompile Include="src\gui\views\sidebar\class_label_lookup.cpp">
@@ -899,6 +935,9 @@
     <ClCompile Include="src\gui\state\runtime\value_search_loader.cpp">
       <Filter>Pliki źródłowe\gui\state\runtime</Filter>
     </ClCompile>
+    <ClCompile Include="src\gui\state\runtime\method_search_loader.cpp">
+      <Filter>Pliki źródłowe\gui\state\runtime</Filter>
+    </ClCompile>
     <ClCompile Include="src\gui\state\navigation\walker_controller.cpp">
       <Filter>Pliki źródłowe\gui\state\navigation</Filter>
     </ClCompile>
@@ -942,6 +981,9 @@
       <Filter>Pliki źródłowe\gui\state\runtime</Filter>
     </ClCompile>
     <ClCompile Include="src\gui\state\runtime\script_model.cpp">
+      <Filter>Pliki źródłowe\gui\state\runtime</Filter>
+    </ClCompile>
+    <ClCompile Include="src\gui\state\runtime\session_persist.cpp">
       <Filter>Pliki źródłowe\gui\state\runtime</Filter>
     </ClCompile>
     <ClCompile Include="src\gui\state\history\inspector_bookmarks_model.cpp">

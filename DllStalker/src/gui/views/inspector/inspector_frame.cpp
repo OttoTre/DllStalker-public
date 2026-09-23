@@ -106,7 +106,12 @@ void RenderInspector(ControlPanelSessionState& state, CopyFeedbackState& copyFee
         ImGui::EndTabItem();
     }
 
-    if (ImGui::BeginTabItem("Methods")) {
+    ImGuiTabItemFlags methodsFlags = ImGuiTabItemFlags_None;
+    if (state.pendingFocusInspectorMethodsTab) {
+        methodsFlags = ImGuiTabItemFlags_SetSelected;
+        state.pendingFocusInspectorMethodsTab = false;
+    }
+    if (ImGui::BeginTabItem("Methods", nullptr, methodsFlags)) {
         RenderMethodsTab(inspectorSnapshot, copyFeedback, state.loaders.inspectorLoadInProgress.load(), state);
         ImGui::EndTabItem();
     }

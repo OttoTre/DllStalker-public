@@ -27,19 +27,26 @@ void DrawRefreshIcon(ImDrawList* draw, ImVec2 p0, float size, ImU32 col, float a
     const float thick = 1.25f;
     const ImVec2 center(cx, cy);
     constexpr float kPi = 3.14159265f;
-    const float a0 = -kPi * 0.65f + angle_offset;
-    const float a1 = kPi * 1.05f + angle_offset;
+    const float arc_start = kPi * 0.15f + angle_offset;
+    const float arc_end = kPi * 1.75f + angle_offset;
     draw->PathClear();
-    draw->PathArcTo(center, r, a0, a1, 16);
+    draw->PathArcTo(center, r, arc_start, arc_end, 16);
     draw->PathStroke(col, 0, thick);
-    const float tip_x = cx + std::cos(a0) * r;
-    const float tip_y = cy + std::sin(a0) * r;
-    const float wing = size * 0.11f;
-    const float tangent = a0 + kPi * 0.5f;
-    const ImVec2 tip(tip_x, tip_y);
-    const ImVec2 w0(tip_x + std::cos(tangent - 0.55f) * wing, tip_y + std::sin(tangent - 0.55f) * wing);
-    const ImVec2 w1(tip_x + std::cos(tangent + 2.1f) * wing, tip_y + std::sin(tangent + 2.1f) * wing);
-    draw->AddTriangleFilled(tip, w0, w1, col);
+    const float head_ang = arc_end - kPi * 0.10f;
+    const float base_x = cx + std::cos(head_ang) * r;
+    const float base_y = cy + std::sin(head_ang) * r;
+    const float tx = std::cos(head_ang + kPi * 0.5f);
+    const float ty = std::sin(head_ang + kPi * 0.5f);
+    const float rx = std::cos(head_ang);
+    const float ry = std::sin(head_ang);
+    const float wing = size * 0.24f;
+    constexpr float kSpread = 0.52f;
+    const float head_length = wing * std::cos(kSpread);
+    const float half_base = wing * std::sin(kSpread);
+    const ImVec2 tip(base_x + tx * head_length, base_y + ty * head_length);
+    const ImVec2 base0(base_x + rx * half_base, base_y + ry * half_base);
+    const ImVec2 base1(base_x - rx * half_base, base_y - ry * half_base);
+    draw->AddTriangleFilled(tip, base0, base1, col);
 }
 
 void DrawPlayIcon(ImDrawList* draw, ImVec2 p0, float size, ImU32 col)
@@ -120,6 +127,23 @@ void DrawDeepIcon(ImDrawList* draw, ImVec2 p0, float size, ImU32 col)
     draw->AddCircleFilled(root, node_r, col, 12);
     draw->AddCircleFilled(child_l, node_r, col, 12);
     draw->AddCircleFilled(child_r, node_r, col, 12);
+}
+
+void DrawAddRowIcon(ImDrawList* draw, ImVec2 p0, float size, ImU32 col)
+{
+    const float thick = 1.25f;
+    const float barL = p0.x + size * 0.16f;
+    const float barR = p0.x + size * 0.52f;
+    const float row0 = p0.y + size * 0.36f;
+    const float row1 = p0.y + size * 0.64f;
+    draw->AddLine(ImVec2(barL, row0), ImVec2(barR, row0), col, thick);
+    draw->AddLine(ImVec2(barL, row1), ImVec2(barR, row1), col, thick);
+
+    const float plusCx = p0.x + size * 0.74f;
+    const float plusCy = p0.y + size * 0.50f;
+    const float plusArm = size * 0.14f;
+    draw->AddLine(ImVec2(plusCx - plusArm, plusCy), ImVec2(plusCx + plusArm, plusCy), col, thick);
+    draw->AddLine(ImVec2(plusCx, plusCy - plusArm), ImVec2(plusCx, plusCy + plusArm), col, thick);
 }
 
 void DrawStopIcon(ImDrawList* draw, ImVec2 p0, float size, ImU32 col)
@@ -342,6 +366,10 @@ void DrawDeepAdapter(ImDrawList* d, ImVec2 p, float s, ImU32 c, void*)
 {
     DrawDeepIcon(d, p, s, c);
 }
+void DrawAddRowAdapter(ImDrawList* d, ImVec2 p, float s, ImU32 c, void*)
+{
+    DrawAddRowIcon(d, p, s, c);
+}
 void DrawSnapshotAdapter(ImDrawList* d, ImVec2 p, float s, ImU32 c, void*)
 {
     DrawSnapshotIcon(d, p, s, c);
@@ -397,6 +425,17 @@ bool IconRefreshButton(const char* id, const char* tooltip, float size, float sp
         opts.accept_press = false;
         return IconButtonCore(opts);
     }
+    opts.color_mode = IconColorMode::HoverBrighten;
+    return IconButtonCore(opts);
+}
+
+bool IconAddRowButton(const char* id, const char* tooltip, float size)
+{
+    IconButtonOpts opts{};
+    opts.id = id;
+    opts.size = size;
+    opts.tooltip = tooltip;
+    opts.draw_icon = DrawAddRowAdapter;
     opts.color_mode = IconColorMode::HoverBrighten;
     return IconButtonCore(opts);
 }

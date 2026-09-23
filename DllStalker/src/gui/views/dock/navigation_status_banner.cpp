@@ -12,12 +12,27 @@
 
 namespace Gui::Views
 {
-void RenderNavigationStatusBanner(const ControlPanelSessionState& state) {
+void RenderNavigationStatusBanner(const ControlPanelSessionState& state, bool sameLine) {
     const double now = State::HistorySteadyNowSeconds();
     if (!state.navigationFeedback.IsStatusFresh(now)) {
         return;
     }
-    UiTheme::DrawWarningText(state.navigationFeedback.statusMessage);
+    if (sameLine) {
+        ImGui::SameLine();
+    }
+    const char* text = state.navigationFeedback.statusMessage;
+    switch (state.navigationFeedback.statusKind) {
+    case State::NavigationStatusKind::Success:
+        UiTheme::DrawSuccessText(text);
+        break;
+    case State::NavigationStatusKind::Error:
+        UiTheme::DrawErrorText(text);
+        break;
+    case State::NavigationStatusKind::Warning:
+    default:
+        UiTheme::DrawWarningText(text);
+        break;
+    }
 }
 } // namespace Gui::Views
 

@@ -13,7 +13,6 @@
 
 #include "imgui.h"
 
-#include <algorithm>
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
@@ -55,34 +54,78 @@ float MeasureSmallButtonWidth(const char* label) {
     return ImGui::CalcTextSize(label).x + style.FramePadding.x * 2.0f;
 }
 
+float BookmarkActionsColumnWidth() {
+    const ImGuiStyle& style = ImGui::GetStyle();
+    return MeasureSmallButtonWidth("Rename")
+           + MeasureSmallButtonWidth("Delete")
+           + style.ItemInnerSpacing.x
+           + style.CellPadding.x * 2.0f;
+}
+
 void RenderBookmarkRow(ControlPanelSessionState& state,
                        BookmarksTabModalState& modal,
                        const Gui::State::Bookmark& entry,
                        uint32_t& deleteRequestedId) {
     const std::string label =
         entry.name.empty() ? std::string("(unnamed)") : entry.name;
-    const std::string subtitle =
+    const std::string location =
         State::NavigationLocationLabel(entry.snapshot);
+    const ImGuiStyle& style = ImGui::GetStyle();
+    ImFont*           font  = ImGui::GetFont();
+    const float       fontSize = ImGui::GetFontSize();
+    const float       lineH = ImGui::GetTextLineHeight();
+    const float       rowH  = lineH * 2.0f;
 
-    const ImGuiStyle& style  = ImGui::GetStyle();
-    const float       yRow   = ImGui::GetCursorPosY();
-    const float       xStart = ImGui::GetCursorPosX();
-    const float       availX = ImGui::GetContentRegionAvail().x;
-
-    const float deleteW  = MeasureSmallButtonWidth("Delete");
-    const float renameW  = MeasureSmallButtonWidth("Rename");
-    const float actionsW = deleteW + renameW + style.ItemInnerSpacing.x;
-
-    float subtitleW = 0.0f;
-    if (!subtitle.empty()) {
-        subtitleW = ImGui::CalcTextSize((" - " + subtitle).c_str()).x
-                    + style.ItemInnerSpacing.x;
+    ImGui::TableNextRow(ImGuiTableRowFlags_None, rowH);
+    ImGui::TableSetColumnIndex(0);
+    if (ImGui::Selectable("##bookmark", false, 0,
+                          ImVec2(ImGui::GetContentRegionAvail().x,
+                                 rowH))) {
+        state.TryApplyBookmark(entry.id);
+    }
+    const ImVec2 rowMin = ImGui::GetItemRectMin();
+    const ImVec2 rowMax = ImGui::GetItemRectMax();
+    const float textX = rowMin.x + style.FramePadding.x;
+    const float textY = rowMin.y;
+    const ImVec4 textClip(textX,
+                          rowMin.y,
+                          rowMax.x - style.FramePadding.x,
+                          rowMax.y);
+    ImDrawList* drawList = ImGui::GetWindowDrawList();
+    drawList->AddText(font, fontSize, ImVec2(textX, textY),
+                      ImGui::GetColorU32(ImGuiCol_Text),
+                      label.c_str(), nullptr, 0.0f, &textClip);
+    if (!location.empty()) {
+        drawList->AddText(font, fontSize, ImVec2(textX, textY + lineH),
+                          ImGui::GetColorU32(ImGuiCol_TextDisabled),
+                          location.c_str(), nullptr, 0.0f, &textClip);
+    }
+    if (ImGui::IsItemHovered()) {
+        const std::string& imageName = entry.snapshot.imageName;
+        const bool hasImage = !imageName.empty() && imageName != "<image>";
+        std::string tooltip;
+        if (hasImage) {
+            tooltip = "Image: ";
+            tooltip += imageName;
+        }
+        if (!location.empty()) {
+            if (!tooltip.empty()) {
+                tooltip += '\n';
+            }
+            tooltip += location;
+        }
+        if (!tooltip.empty()) {
+            tooltip += "\n\n";
+        }
+        tooltip += "Click to restore this bookmark.";
+        ImGui::SetTooltip("%s", tooltip.c_str());
     }
 
-    const float leftW       = (std::max)(availX - actionsW, 1.0f);
-    const float selectableW = (std::max)(leftW - subtitleW, 1.0f);
-
-    ImGui::SetCursorPos(ImVec2(xStart + availX - actionsW, yRow));
+    ImGui::TableSetColumnIndex(1);
+    ImVec2 actionPos = ImGui::GetCursorScreenPos();
+    const float smallButtonH = ImGui::CalcTextSize("Rename").y;
+    actionPos.y = rowMin.y + (rowH - smallButtonH) * 0.5f;
+    ImGui::SetCursorScreenPos(actionPos);
     if (ImGui::SmallButton("Rename")) {
         modal.pendingRenameId = entry.id;
         CopyTruncated(modal.renameNameBuffer, sizeof(modal.renameNameBuffer),
@@ -94,22 +137,6 @@ void RenderBookmarkRow(ControlPanelSessionState& state,
     if (ImGui::SmallButton("Delete")) {
         deleteRequestedId = entry.id;
     }
-
-    ImGui::SetCursorPos(ImVec2(xStart, yRow));
-    if (ImGui::Selectable(label.c_str(), false, 0, ImVec2(selectableW, 0.0f))) {
-        state.TryApplyBookmark(entry.id);
-    }
-    if (ImGui::IsItemHovered()) {
-        ImGui::SetTooltip("Click to restore this bookmark.");
-    }
-
-    if (!subtitle.empty()) {
-        ImGui::SameLine(0.0f, 0.0f);
-        ImGui::TextDisabled(" - %s", subtitle.c_str());
-    }
-
-    ImGui::SetCursorPos(
-        ImVec2(xStart, yRow + ImGui::GetFrameHeight() + style.ItemSpacing.y));
 }
 
 void RenderRenamePopup(ControlPanelSessionState& state) {
@@ -175,7 +202,7 @@ void RenderBookmarksTab(ControlPanelSessionState& state) {
     ImGui::TextDisabled("%zu bookmark%s", state.bookmarks.Size(),
                         state.bookmarks.Size() == 1 ? "" : "s");
 
-    RenderNavigationStatusBanner(state);
+    RenderNavigationStatusBanner(state, true);
 
     if (state.bookmarks.bookmarks.empty()) {
         ImGui::TextUnformatted("No bookmarks yet. Use the star in the Inspector header to save the active view.");
@@ -194,14 +221,42 @@ void RenderBookmarksTab(ControlPanelSessionState& state) {
 
             uint32_t deleteRequestedId = 0;
 
-            for (uint32_t id : ids) {
-                auto* entry = state.bookmarks.Find(id);
-                if (!entry) continue;
+            const ImGuiStyle& style = ImGui::GetStyle();
+            ImGui::PushStyleVar(
+                ImGuiStyleVar_CellPadding,
+                ImVec2(style.CellPadding.x, 0.0f));
+            ImGui::PushStyleVar(
+                ImGuiStyleVar_ItemSpacing,
+                ImVec2(style.ItemSpacing.x, 0.0f));
+            ImGui::PushStyleColor(
+                ImGuiCol_TableRowBgAlt,
+                ImVec4(1.0f, 1.0f, 1.0f, 0.04f));
+            ImGui::PushStyleColor(
+                ImGuiCol_TableBorderLight,
+                ImVec4(1.0f, 1.0f, 1.0f, 0.08f));
+            if (ImGui::BeginTable("BookmarksTable", 2,
+                                  ImGuiTableFlags_SizingStretchProp
+                                      | ImGuiTableFlags_NoSavedSettings
+                                      | ImGuiTableFlags_RowBg
+                                      | ImGuiTableFlags_BordersInnerH)) {
+                ImGui::TableSetupColumn(
+                    "Bookmark", ImGuiTableColumnFlags_WidthStretch);
+                ImGui::TableSetupColumn(
+                    "Actions", ImGuiTableColumnFlags_WidthFixed,
+                    BookmarkActionsColumnWidth());
 
-                ImGui::PushID(static_cast<int>(id));
-                RenderBookmarkRow(state, modal, *entry, deleteRequestedId);
-                ImGui::PopID();
+                for (uint32_t id : ids) {
+                    auto* entry = state.bookmarks.Find(id);
+                    if (!entry) continue;
+
+                    ImGui::PushID(static_cast<int>(id));
+                    RenderBookmarkRow(state, modal, *entry, deleteRequestedId);
+                    ImGui::PopID();
+                }
+                ImGui::EndTable();
             }
+            ImGui::PopStyleColor(2);
+            ImGui::PopStyleVar(2);
 
             if (deleteRequestedId != 0) {
                 state.bookmarks.Remove(deleteRequestedId);

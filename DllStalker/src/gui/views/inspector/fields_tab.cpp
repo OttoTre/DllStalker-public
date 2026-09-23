@@ -8,7 +8,6 @@
 #include "gui/session_state.h"
 #include "gui/config.h"
 #include "gui/infra/search_filter.h"
-#include "gui/state/fields/field_path_resolver.h"
 #include "gui/state/fields/field_snapshot_model.h"
 #include "gui/state/fields/field_watch_model.h"
 #include "gui/state/navigation/history_steady_time.h"
@@ -31,14 +30,6 @@ constexpr float FIELD_REFRESH_INTERVALS[] = { 0.5f, 1.0f, 2.0f, 3.0f, 4.0f, 5.0f
 constexpr const char* FIELD_REFRESH_INTERVAL_LABELS[] = { "0.5s", "1s", "2s", "3s", "4s", "5s" };
 constexpr const char* INSTANCE_SEARCH_MODE_LABELS[] = { "Static discovery", "Live API" };
 
-// Single source of truth: scalars, booleans, and System.String are editable.
-// Excluded categories:
-//   PTR           — overwriting a managed reference is unsafe and would
-//                   bypass GC bookkeeping
-//   ARRAY / LIST  — these are navigation targets (open in the Walker),
-//                   not values to overwrite. Falling into the edit
-//                   branch would also hide the green drill-in link.
-//   UNKNOWN       — we don't know how to parse it
 bool IsTransformRelatedField(const Engine::FieldInfo& field, ControlPanelSessionState& state) {
     using Cat = Engine::Types::TypeCategory;
     if (Engine::Types::GetCategory(field.type) != Cat::PTR) {
@@ -83,6 +74,8 @@ void RenderFieldsTab(const InspectorCache& inspectorSnapshot,
 
     const bool inCollectionViewEarly = !state.walker.stack.empty()
                                     && state.walker.stack.back().isCollection;
+    const bool inValueTypeSlotViewEarly = !state.walker.stack.empty()
+                                       && state.walker.stack.back().isValueTypeSlot;
     const bool fieldsBusy = state.loaders.fieldsLoadInProgress.load()
                          || state.loaders.inspectorLoadInProgress.load();
 
@@ -95,9 +88,11 @@ void RenderFieldsTab(const InspectorCache& inspectorSnapshot,
 
     // When the user is drilled into a collection breadcrumb, "refresh" means
     // re-synthesizing the element rows (the underlying array can be
-    // GC-relocated and its length can change between ticks). In every other
-    // breadcrumb we keep the existing field-load path.
+    // GC-relocated and its length can change between ticks). A valuetype-slot
+    // crumb re-resolves that index then reloads T members. Otherwise keep
+    // the existing field-load path.
     const bool inCollectionView = inCollectionViewEarly;
+    const bool inValueTypeSlotView = inValueTypeSlotViewEarly;
     const Engine::FieldInfo collectionSource = inCollectionView
         ? state.walker.stack.back().sourceField
         : Engine::FieldInfo{};
@@ -111,7 +106,12 @@ void RenderFieldsTab(const InspectorCache& inspectorSnapshot,
         state.enumLiteralCache.Clear();
         state.ClearTransformJumpCache();
         state.fieldsLastRefreshAt = ImGui::GetTime();
-        if (inCollectionView) {
+        if (inValueTypeSlotView) {
+            const InspectorBreadcrumb& top = state.walker.stack.back();
+            state.StartValueTypeSlotLoad(state.dumper, top.sourceField, top.klass, top.instance,
+                                         top.valueTypeElementKlass, top.valueTypeIndex);
+        }
+        else if (inCollectionView) {
             // Retrieve owner context from the active breadcrumb so the cache
             // entries remain stable after refresh (same klass/instance pair
             // that was set during the initial NavigateIntoCollection call).
@@ -141,9 +141,29 @@ void RenderFieldsTab(const InspectorCache& inspectorSnapshot,
     ImGui::SetNextItemWidth(90.0f);
     ImGui::Combo("##FieldsRefreshInterval", &state.fieldsRefreshIntervalIndex, FIELD_REFRESH_INTERVAL_LABELS, IM_ARRAYSIZE(FIELD_REFRESH_INTERVAL_LABELS));
 
+    if (inCollectionView
+        && Engine::Types::GetCategory(collectionSource.type) == Engine::Types::TypeCategory::LIST) {
+        ImGui::SameLine(0.0f, ImGui::GetStyle().ItemInnerSpacing.x);
+        ImGui::BeginDisabled(fieldsBusy || !state.dumper);
+        if (UiTheme::IconAddRowButton("##add_list_element", "Add element")) {
+            std::string error;
+            if (state.dumper->TryWriteListLogicalSize(collectionSource, &error)) {
+                strncpy_s(editStatus, sizeof(editStatus), "Applied: added element", _TRUNCATE);
+                editStatusAtSeconds = static_cast<float>(ImGui::GetTime());
+                DoRefresh(true);
+            }
+            else {
+                std::snprintf(editStatus, sizeof(editStatus), "Cannot add: %s",
+                              error.empty() ? "collection unreadable" : error.c_str());
+                editStatusAtSeconds = static_cast<float>(ImGui::GetTime());
+            }
+        }
+        ImGui::EndDisabled();
+    }
+
     if (state.fieldsAutoRefresh && state.dumper && state.selectedClass
         && !state.loaders.fieldsLoadInProgress.load()
-        && !(inCollectionView && state.loaders.inspectorLoadInProgress.load())) {
+        && !((inCollectionView || inValueTypeSlotView) && state.loaders.inspectorLoadInProgress.load())) {
         const int intervalIndex = (state.fieldsRefreshIntervalIndex >= 0 && state.fieldsRefreshIntervalIndex < IM_ARRAYSIZE(FIELD_REFRESH_INTERVALS))
             ? state.fieldsRefreshIntervalIndex
             : 1;
@@ -383,6 +403,9 @@ void RenderFieldsTab(const InspectorCache& inspectorSnapshot,
                     }
                 }
                 else if (!field.valueDisplay.empty()) {
+                    // Collection element rows that are not editable (typical: PTR/ref)
+                    // get a muted hint so they are not mistaken for a broken edit cell.
+                    const bool showCollectionNavigateHint = inCollectionView && !canEdit;
                     // Pointer / array / list fields with a real (non-null,
                     // non-error) value are rendered as "links" that drill into
                     // the referenced object or collection. PTR -> a single
@@ -399,11 +422,41 @@ void RenderFieldsTab(const InspectorCache& inspectorSnapshot,
                         && field.valueDisplay != "??"
                         && field.valueDisplay != "[]";
 
-                    const bool isNavigablePtr        = hasReadableValue && category == Cat::PTR && !field.isEnum;
+                    // Gate custom valuetype slot drill before GetCategory PTR.
+                    // Parent crumb must be the collection wrapper; VEC*/enum T skip.
+                    const bool isCustomValueTypeSlot = inCollectionView
+                        && state.dumper
+                        && field.hasValue
+                        && field.valueAddress != 0
+                        && IsCustomValueTypeElementRow(field, *state.dumper);
+
+                    const bool isNavigablePtr        = hasReadableValue
+                        && category == Cat::PTR
+                        && !field.isEnum
+                        && !isCustomValueTypeSlot;
                     const bool isNavigableCollection = hasReadableValue
                         && (category == Cat::ARRAY || category == Cat::LIST);
 
-                    if ((isNavigablePtr || isNavigableCollection) && state.dumper) {
+                    if (isCustomValueTypeSlot) {
+                        ImGui::PushID(static_cast<int>(fieldIndex));
+                        ImGui::PushStyleColor(ImGuiCol_Text, UiTheme::Tokens().semantic_struct);
+                        if (ImGui::SmallButton(field.valueDisplay.c_str())) {
+                            const bool navigated = state.NavigateIntoValueTypeSlot(field);
+                            if (!navigated) {
+                                snprintf(editStatus, sizeof(editStatus),
+                                         "Cannot open: %s valuetype slot",
+                                         field.name.c_str());
+                                editStatusAtSeconds = static_cast<float>(ImGui::GetTime());
+                            }
+                        }
+                        ImGui::PopStyleColor();
+                        if (showCollectionNavigateHint) {
+                            ImGui::SameLine(0.0f, 6.0f);
+                            ImGui::TextDisabled("navigate only");
+                        }
+                        ImGui::PopID();
+                    }
+                    else if ((isNavigablePtr || isNavigableCollection) && state.dumper) {
                         ImGui::PushID(static_cast<int>(fieldIndex));
                         // Pointer drills get blue, collection drills get green
                         // so the user can distinguish "step into one object"
@@ -446,19 +499,35 @@ void RenderFieldsTab(const InspectorCache& inspectorSnapshot,
                                 ImGui::SetTooltip("Open Transform tab for this object");
                             }
                         }
+                        if (showCollectionNavigateHint) {
+                            ImGui::SameLine(0.0f, 6.0f);
+                            ImGui::TextDisabled("navigate only");
+                        }
                         ImGui::PopID();
                     }
                     else {
                         ImGui::TextUnformatted(field.valueDisplay.c_str());
+                        if (showCollectionNavigateHint) {
+                            ImGui::SameLine(0.0f, 6.0f);
+                            ImGui::TextDisabled("navigate only");
+                        }
                     }
                 }
                 else if (field.valueAddress != 0 && field.hasValue) {
                     char staticValueBuffer[32] = {};
                     snprintf(staticValueBuffer, sizeof(staticValueBuffer), "0x%llX", static_cast<unsigned long long>(field.valueAddress));
                     ImGui::TextUnformatted(staticValueBuffer);
+                    if (inCollectionView && !canEdit) {
+                        ImGui::SameLine(0.0f, 6.0f);
+                        ImGui::TextDisabled("navigate only");
+                    }
                 }
                 else {
                     ImGui::TextUnformatted("-");
+                    if (inCollectionView && !canEdit) {
+                        ImGui::SameLine(0.0f, 6.0f);
+                        ImGui::TextDisabled("navigate only");
+                    }
                 }
 
                 ImGui::PopID();

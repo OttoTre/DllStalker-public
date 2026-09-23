@@ -18,8 +18,8 @@ namespace Engine::Dumper
 class ValueSearchSchemaCache;
 
 // Class-scoped field walk (no gui/). Name: fuzzy/strict; strings: quote-strip +
-// case; Deep → collection expand + interiors + one PTR hop. Schema may skip
-// classes that cannot match chips/name.
+// case; Deep → collection expand + interiors + PTR follow (depth 2). Schema
+// may skip classes that cannot match chips/name.
 // prebuiltSchema: optional schema from caller GetOrBuild (avoids a second build).
 ValueSearchScanResult RunValueSearch(UnityDumper& dumper,
                                      const ValueSearchParams& params,

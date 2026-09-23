@@ -15,10 +15,11 @@
 
 namespace Engine::Dumper
 {
-// Follow PTR / object graph: one hop through instance PTR fields when Deep
-// is on. Hit names: ptr.field / ptr.arr[i] / ptr.arr[i].member.
-// Schema: ptr.field / ptr.arr[].member; unresolved type → ptr.* sentinel.
-// Caps: kValueSearchMaxPtrFieldsFollowed (16); no PTR→PTR chaining.
+// Follow PTR / object graph: up to kValueSearchMaxPtrFollowDepth (2)
+// instance-PTR hops when Deep is on. Hit names: ptr.field / a.b.c /
+// ptr.arr[i] / a.b.arr[i].member. Schema: ptr.field / a.b.c /
+// ptr.arr[].member; unresolved type → ptr.* / a.b.* sentinel.
+// Caps: kValueSearchMaxPtrFieldsFollowed (16 per owner at each hop).
 // Nested object reuses Array/List + Deep caps (64×32). Ptr chip stays
 // null/non-null on PTR slots — following is Deep, not chipPtr.
 
@@ -57,16 +58,18 @@ bool TryResolvePtrTarget(UnityDumper& dumper,
                          void*& outInstance,
                          void*& outKlass);
 
-// Schema Build: emit nested patterns under a followable PTR parent.
-// Resolves type klass best-effort; on failure emits ptr.* sentinel.
+// Schema Build: emit nested patterns under a followable PTR parent (depth
+// kValueSearchMaxPtrFollowDepth). Resolves type klass best-effort; on
+// failure emits ptr.* / a.b.* sentinel. Recurses on short nested PTR
+// names; does not GetOrBuild nested klass into the schema cache.
 void AppendPtrFollowSchemaLeaves(UnityDumper& dumper,
                                  void* ownerKlass,
                                  const ValueSearchFieldSchema& ptrParent,
                                  std::vector<ValueSearchFieldSchema>& out);
 
 // Drill / resolve: parse ptr.nested, re-resolve PTR target, then nested path
-// (field / arr[i] / arr[i].member) against the nested object's fields.
-// Returns &storage or nullptr. ownerKlass owns the PTR field.
+// (field / arr[i] / arr[i].member / further PTR hops) against the nested
+// object's fields. Returns &storage or nullptr. ownerKlass owns the PTR field.
 const FieldInfo* ResolvePtrFollowField(UnityDumper& dumper,
                                        void* ownerKlass,
                                        const std::vector<FieldInfo>& rawFields,

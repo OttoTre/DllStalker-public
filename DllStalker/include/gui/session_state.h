@@ -20,6 +20,7 @@
 #include "gui/state/fields/field_snapshot_model.h"
 #include "gui/state/fields/field_watch_model.h"
 #include "gui/state/fields/value_search_model.h"
+#include "gui/state/runtime/method_search_model.h"
 #include "gui/state/runtime/call_log_model.h"
 #include "gui/state/history/inspector_bookmarks_model.h"
 #include "gui/state/history/inspector_history_model.h"
@@ -63,6 +64,7 @@ struct ControlPanelSessionState {
     State::FieldSnapshotModel            fieldSnapshot{};
     State::FieldWatchModel               fieldWatch{};
     State::ValueSearchModel              valueSearch{};
+    State::MethodSearchModel             methodSearch{};
     State::CallLogModel                  callLog{};
     State::InspectorNavigationFeedback   navigationFeedback{};
     State::TransformModel                transformModel{};
@@ -79,7 +81,8 @@ struct ControlPanelSessionState {
     char fieldsFilterBuffer[128]  = "";
     char valueSearchNameBuffer[128]  = "";
     char valueSearchValueBuffer[128] = "";
-    // 0 = Classes, 1 = Search (sidebar browser mode).
+    char methodSearchBuffer[128]     = "";
+    // 0 = Classes, 1 = Search, 2 = Methods.
     int  sidebarBrowserMode = 0;
     bool   fieldsAutoRefresh         = false;
     int    fieldsRefreshIntervalIndex = 1;
@@ -88,6 +91,8 @@ struct ControlPanelSessionState {
     // App shell auto-selects imgSearchBuffer once after the image cache loads.
     // Cleared after one attempt; Refresh Images re-arms when nothing is selected.
     bool pendingDefaultImageSelection = true;
+    bool pendingFocusInspectorMethodsTab = false;
+    bool sessionPersistRebound = false;
 
     // Fields [T] probe cache: valueAddress → show Transform jump.
     // Cleared on inspector/fields refresh; not walked on every Present row.
@@ -138,6 +143,12 @@ struct ControlPanelSessionState {
                              const Engine::FieldInfo& sourceField,
                              void* ownerKlass,
                              void* ownerInstance);
+    void StartValueTypeSlotLoad(const std::shared_ptr<Engine::UnityDumper>& dumperRef,
+                                const Engine::FieldInfo& sourceField,
+                                void* ownerKlass,
+                                void* ownerInstance,
+                                void* valueTypeElementKlass,
+                                size_t valueTypeIndex);
     // Cancel in-flight Analysis Compare worker (GUI-thread; joins prior jthread).
     void CancelInstanceCompare();
     // Join all workers that write inspector.cache / root candidates.
@@ -145,10 +156,13 @@ struct ControlPanelSessionState {
     void CancelValueSearch();
     void StartValueSearch();
     void StartValueDrill();
+    void CancelImageMethodIndex();
+    void StartImageMethodIndex();
 
     // ---- Recursive Memory Walker -------------------------------------------
     bool NavigateIntoPointer(uintptr_t fieldValueAddress, std::string fieldLabel);
     bool NavigateIntoCollection(const Engine::FieldInfo& field);
+    bool NavigateIntoValueTypeSlot(const Engine::FieldInfo& elementRow);
     // Search hit → walker path (collection / Deep / PTR-follow). Resets stack.
     // Unresolvable path falls back to load-at-root instance.
     bool NavigateToValueSearchHit(const Engine::ValueSearchHit& hit);
@@ -188,6 +202,9 @@ struct ControlPanelSessionState {
     // ---- Bookmarks ---------------------------------------------------------
     bool BookmarkCurrentView(const char* name);
     State::HistoryRestoreResult TryApplyBookmark(uint32_t bookmarkId);
+    // Bookmark recipe Jump only (null crumb instances after Rebind). History
+    // and Watcher must keep using TryApplyNavigationSnapshot.
+    State::HistoryRestoreResult TryReplayBookmarkRecipe(const State::NavigationSnapshot& snap);
 };
 } // namespace Gui
 

@@ -18,8 +18,10 @@ namespace Engine::Dumper
 // Deep Search: Array/List element interior leaves (one hop only).
 // Live hit names:  container[i].member  (e.g. cheats[0].name)
 // Schema patterns: container[].member   (wildcard index for name/chip gate)
-// Caps: kValueSearchMaxElementInteriorFields (32) per element; pair with
-// kValueSearchMaxCollectionElements (64). No nested ARRAY/LIST / depth-2.
+// Caps: kValueSearchMaxElementInteriorFields (32) per element on expand;
+// Search/Drill *scan* expand still uses kValueSearchMaxCollectionElements (64).
+// Resolve/nav (slot + interior) uses an index-aware GetCollectionView bound
+// so hits past 64 can Drill / open inspector. No nested ARRAY/LIST / depth-2.
 // Shared by schema Build, live Search expand, and Drill resolve.
 
 std::string FormatCollectionElementInteriorName(const std::string& containerName,

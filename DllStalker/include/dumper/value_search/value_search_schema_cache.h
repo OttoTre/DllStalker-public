@@ -19,8 +19,9 @@ class UnityDumper;
 namespace Engine::Dumper
 {
 // True when a schema field can match chips + optional name filter.
-// Value needle ignored (needs live reads). Deep admits interiors / Follow /
-// ARRAY|LIST; unresolved ptr.* admits the class when Deep is on.
+// Value needle ignored (needs live reads). Deep admits interiors / Follow
+// (depth 2) / ARRAY|LIST; unresolved ptr.* / a.b.* admits the class when
+// Deep is on (sentinels never enter the name-allow set).
 bool ClassSchemaMayMatch(const ValueSearchClassSchema& schema,
                          const ValueSearchParams& params);
 

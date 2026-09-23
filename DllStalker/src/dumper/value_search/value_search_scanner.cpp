@@ -228,7 +228,8 @@ ValueSearchScanResult RunValueSearch(UnityDumper& dumper,
                 && !SchemaNameAllowContains(schemaNameAllow, field.name)
                 && !(followablePtr
                      && SchemaNameAllowIncludesPtr(
-                         field, schemaNameAllow, useNameAllow, params.chipDeep))) {
+                         field, schemaNameAllow, useNameAllow, params.chipDeep,
+                         /*pathPrefix=*/{}))) {
                 continue;
             }
 
@@ -247,7 +248,8 @@ ValueSearchScanResult RunValueSearch(UnityDumper& dumper,
             if (followablePtr && ptrFieldsFollowed < kValueSearchMaxPtrFieldsFollowed) {
                 if (TryMatchPtrFollow(
                         dumper, params, instance, field, liveSchema, schemaNameAllow,
-                        useNameAllow, stopToken, out)) {
+                        useNameAllow, /*pathPrefix=*/{}, kValueSearchMaxPtrFollowDepth,
+                        stopToken, out)) {
                     ++ptrFieldsFollowed;
                 }
                 if (out.truncReason == ValueSearchTruncReason::HitCap) {

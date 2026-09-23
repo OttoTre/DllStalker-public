@@ -6,7 +6,6 @@
 
 #include "gui/chrome/ui_theme.h"
 #include "gui/session_state.h"
-#include "gui/config.h"
 #include "gui/views/dock/navigation_status_banner.h"
 
 #include "gui/state/navigation/history_steady_time.h"
@@ -195,7 +194,8 @@ void RenderWatcherWatchlist(ControlPanelSessionState& state,
                     std::string banner = "Restored watch: ";
                     banner += WatchEntryLabel(entry);
                     state.navigationFeedback.MarkStatus(banner.c_str(),
-                                                        Gui::State::HistorySteadyNowSeconds());
+                                                        Gui::State::HistorySteadyNowSeconds(),
+                                                        Gui::State::NavigationStatusKind::Success);
                 }
             }
             ImGui::SameLine(0.0f, style.ItemInnerSpacing.x);

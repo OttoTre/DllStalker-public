@@ -6,10 +6,12 @@
 
 #include "gui/state/navigation/history_steady_time.h"
 #include "gui/state/navigation/history_validation.h"
+#include "gui/state/runtime/session_persist.h"
 #include "gui/views/sidebar/class_label_lookup.h"
 
 #include <algorithm>
 #include <cctype>
+#include <cstring>
 #include <string>
 
 namespace Gui
@@ -26,6 +28,19 @@ std::string LookupImageName(const ControlPanelSessionState& state, void* imagePt
         }
     }
     return "<image>";
+}
+
+void SyncImageComboCaption(ControlPanelSessionState& state,
+                           const std::string& imageName,
+                           void* imagePtr) {
+    std::string name = imageName;
+    if (name.empty() || name == "<image>") {
+        name = LookupImageName(state, imagePtr);
+    }
+    if (name.empty() || name == "<image>") {
+        return;
+    }
+    strncpy_s(state.imgSearchBuffer, sizeof(state.imgSearchBuffer), name.c_str(), _TRUNCATE);
 }
 
 std::string LookupClassName(const ControlPanelSessionState& state, void* classPtr) {
@@ -55,8 +70,9 @@ std::string ResolveSnapshotClassName(const ControlPanelSessionState& state,
     return {};
 }
 
-void SetNavigationStatus(ControlPanelSessionState& state, const char* message) {
-    state.navigationFeedback.MarkStatus(message, State::HistorySteadyNowSeconds());
+void SetNavigationStatus(ControlPanelSessionState& state, const char* message,
+                         State::NavigationStatusKind kind = State::NavigationStatusKind::Warning) {
+    state.navigationFeedback.MarkStatus(message, State::HistorySteadyNowSeconds(), kind);
 }
 
 std::string TrimName(const char* raw) {
@@ -185,6 +201,7 @@ State::HistoryRestoreResult ControlPanelSessionState::TryApplyNavigationSnapshot
     // while the new image's classes load.
     if (snap.imagePtr && snap.classPtr == nullptr) {
         selectedImage = snap.imagePtr;
+        SyncImageComboCaption(*this, snap.imageName, snap.imagePtr);
         selectedClass = nullptr;
         ClearClassCache();
         ClearInspectorCache();
@@ -206,6 +223,7 @@ State::HistoryRestoreResult ControlPanelSessionState::TryApplyNavigationSnapshot
             }
         }
         selectedImage = snap.imagePtr;
+        SyncImageComboCaption(*this, snap.imageName, snap.imagePtr);
     }
     selectedClass = snap.classPtr;
 
@@ -262,6 +280,10 @@ State::HistoryRestoreResult ControlPanelSessionState::TryApplyNavigationSnapshot
     if (top.isCollection) {
         StartCollectionLoad(dumper, top.sourceField, top.klass, top.instance);
     }
+    else if (top.isValueTypeSlot) {
+        StartValueTypeSlotLoad(dumper, top.sourceField, top.klass, top.instance,
+                               top.valueTypeElementKlass, top.valueTypeIndex);
+    }
     else {
         StartInspectorLoadAtInstance(dumper, top.klass, top.instance);
     }
@@ -291,19 +313,24 @@ State::HistoryRestoreResult ControlPanelSessionState::TryApplyHistoryEntry(const
     // TryApplyNavigationSnapshot leaves success text to the caller — pick a
     // banner that matches the snapshot shape.
     if (snap->imagePtr && snap->classPtr == nullptr) {
-        SetNavigationStatus(*this, "Restored image selection.");
+        SetNavigationStatus(*this, "Restored image selection.",
+                            State::NavigationStatusKind::Success);
     }
     else if (!snap->breadcrumbs.empty()) {
-        SetNavigationStatus(*this, "Restored inspector state.");
+        SetNavigationStatus(*this, "Restored inspector state.",
+                            State::NavigationStatusKind::Success);
     }
     else if (snap->classPtr && !snap->instancePtr) {
-        SetNavigationStatus(*this, "Restored class selection.");
+        SetNavigationStatus(*this, "Restored class selection.",
+                            State::NavigationStatusKind::Success);
     }
     else if (snap->classPtr && snap->instancePtr) {
-        SetNavigationStatus(*this, "Restored inspector state.");
+        SetNavigationStatus(*this, "Restored inspector state.",
+                            State::NavigationStatusKind::Success);
     }
     else {
-        SetNavigationStatus(*this, "Restored selection.");
+        SetNavigationStatus(*this, "Restored selection.",
+                            State::NavigationStatusKind::Success);
     }
     return result;
 }
@@ -317,6 +344,7 @@ bool ControlPanelSessionState::BookmarkCurrentView(const char* name) {
     State::Bookmark entry{};
     entry.name         = trimmed;
     entry.snapshot     = CaptureNavigationSnapshot("");
+    State::SessionPersist::StampBookmarkNamedPath(entry.snapshot, this);
     entry.createdAtSec = State::HistorySteadyNowSeconds();
     return bookmarks.Add(std::move(entry));
 }
@@ -328,9 +356,43 @@ State::HistoryRestoreResult ControlPanelSessionState::TryApplyBookmark(uint32_t 
         return State::HistoryRestoreResult::BookmarkNotFound;
     }
 
-    // Copy before TryApplyNavigationSnapshot mutates session state.
+    // Copy before apply mutates session state.
     const std::string capturedName = bm->name;
     const State::NavigationSnapshot capturedSnap = bm->snapshot;
+
+    bool recipeReplay = false;
+    if (!capturedSnap.breadcrumbs.empty()) {
+        for (const auto& crumb : capturedSnap.breadcrumbs) {
+            if (!crumb.instance) {
+                recipeReplay = true;
+                break;
+            }
+        }
+    }
+
+    if (recipeReplay) {
+        const auto result = TryReplayBookmarkRecipe(capturedSnap);
+        if (result == State::HistoryRestoreResult::AppliedLiveRefind) {
+            State::Bookmark* live = bookmarks.Find(bookmarkId);
+            if (live) {
+                const uint32_t id = live->id;
+                const std::string keptName = live->name;
+                const double created = live->createdAtSec;
+                live->snapshot = CaptureNavigationSnapshot("");
+                State::SessionPersist::StampBookmarkNamedPath(live->snapshot, this);
+                if (live->snapshot.rootClassName.empty()) {
+                    live->snapshot.rootClassName = capturedSnap.rootClassName;
+                }
+                live->id = id;
+                live->name = keptName;
+                live->createdAtSec = created;
+            }
+            std::string banner = "Relinked ";
+            banner += capturedName;
+            SetNavigationStatus(*this, banner.c_str(), State::NavigationStatusKind::Success);
+        }
+        return result;
+    }
 
     const auto result = TryApplyNavigationSnapshot(capturedSnap);
     if (result != State::HistoryRestoreResult::Applied) {
@@ -338,9 +400,9 @@ State::HistoryRestoreResult ControlPanelSessionState::TryApplyBookmark(uint32_t 
     }
 
     // Success banner owned here. Bookmarks do not call RecordNavigationEvent().
-    std::string banner = "Restored bookmark: ";
+    std::string banner = "Opened ";
     banner += capturedName;
-    SetNavigationStatus(*this, banner.c_str());
+    SetNavigationStatus(*this, banner.c_str(), State::NavigationStatusKind::Success);
     return result;
 }
 } // namespace Gui

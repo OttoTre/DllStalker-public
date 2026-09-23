@@ -97,20 +97,25 @@ bool ContainerNameAllowsExpand(const FieldInfo& container,
 
 // Name gate for entering a Follow-PTR hop (Deep only). No admit-all without
 // evidence; leaf-justified via schema ptr.* patterns.
+// pathPrefix: parent hops already composed; ptrField.name stays short.
 bool PtrNameAllowsFollow(const FieldInfo& ptrField,
                          const ValueSearchParams& params,
                          const ValueSearchClassSchema* schema,
+                         const std::string& pathPrefix,
                          bool* outPtrNameMatched) {
     if (outPtrNameMatched) {
         *outPtrNameMatched = false;
     }
+    const std::string prefixed = pathPrefix.empty()
+        ? ptrField.name
+        : FormatPtrFollowName(pathPrefix, ptrField.name);
     if (params.nameNeedle.empty()) {
         if (outPtrNameMatched) {
             *outPtrNameMatched = true;
         }
         return true;
     }
-    if (ValueSearchNamePasses(ptrField.name, params)) {
+    if (ValueSearchNamePasses(prefixed, params)) {
         if (outPtrNameMatched) {
             *outPtrNameMatched = true;
         }
@@ -121,7 +126,7 @@ bool PtrNameAllowsFollow(const FieldInfo& ptrField,
     }
     if (schema) {
         for (const auto& field : schema->fields) {
-            if (!PtrFollowSchemaBelongsTo(field.name, ptrField.name)) {
+            if (!PtrFollowSchemaBelongsTo(field.name, prefixed)) {
                 continue;
             }
             if (IsPtrFollowUnresolvedSchemaName(field.name)) {
@@ -169,23 +174,28 @@ bool SchemaNameAllowIncludesCollection(const FieldInfo& container,
     return false;
 }
 
-// Early-out for Follow: bare PTR name in allow (Deep, no chipPtr required) or
-// nested ptr.* prefix. Empty needle → useNameAllow false (admit). Sentinel
-// ptr.* is never in the allow set.
+// Early-out for Follow: prefixed PTR name in allow (Deep, no chipPtr required)
+// or nested prefixed.* prefix. Empty needle → useNameAllow false (admit).
+// Sentinel ptr.* / a.b.* is never in the allow set.
+// pathPrefix: parent hops; ptrField.name stays short. Compose prefixed once.
 bool SchemaNameAllowIncludesPtr(const FieldInfo& ptrField,
                                 const std::unordered_set<std::string>& schemaNameAllow,
                                 bool useNameAllow,
-                                bool chipDeep) {
+                                bool chipDeep,
+                                const std::string& pathPrefix) {
     if (!useNameAllow) {
         return true;
     }
-    if (SchemaNameAllowContains(schemaNameAllow, ptrField.name)) {
+    const std::string prefixed = pathPrefix.empty()
+        ? ptrField.name
+        : FormatPtrFollowName(pathPrefix, ptrField.name);
+    if (SchemaNameAllowContains(schemaNameAllow, prefixed)) {
         return true;
     }
     if (!chipDeep) {
         return false;
     }
-    const std::string prefix = ptrField.name + ".";
+    const std::string prefix = prefixed + ".";
     for (const auto& name : schemaNameAllow) {
         if (name.size() > prefix.size()
             && name.compare(0, prefix.size(), prefix) == 0) {
@@ -301,25 +311,36 @@ bool TryMatchCollectionElements(UnityDumper& dumper,
     return true;
 }
 
-// Follow PTR (Deep): one hop into an instance PTR field; same match pipeline
-// on the nested object. No PTR→PTR. Returns true when the target was resolved.
-bool TryMatchPtrFollow(UnityDumper& dumper,
-                       const ValueSearchParams& params,
-                       void* rootInstance,
-                       const FieldInfo& ptrField,
-                       const ValueSearchClassSchema* schema,
-                       const std::unordered_set<std::string>& schemaNameAllow,
-                       bool useNameAllow,
-                       std::stop_token stopToken,
-                       ValueSearchScanResult& out) {
-    if (!params.chipDeep || !IsFollowablePtrField(ptrField)) {
+namespace {
+// Follow PTR (Deep): up to kValueSearchMaxPtrFollowDepth hops into instance
+// PTR fields; same match pipeline on the nested object. Recurse with
+// pathPrefix = prefixed (collection-mirror). Returns true when the target
+// was resolved (including unreadable nested GetRawFields). Null / unreadable
+// target / path-ancestor cycle → false (do not consume the 16-slot cap).
+bool TryMatchPtrFollowWithAncestors(UnityDumper& dumper,
+                                    const ValueSearchParams& params,
+                                    void* rootInstance,
+                                    const FieldInfo& ptrField,
+                                    const ValueSearchClassSchema* schema,
+                                    const std::unordered_set<std::string>& schemaNameAllow,
+                                    bool useNameAllow,
+                                    const std::string& pathPrefix,
+                                    size_t remainingDepth,
+                                    std::vector<void*>& followAncestors,
+                                    std::stop_token stopToken,
+                                    ValueSearchScanResult& out) {
+    if (remainingDepth == 0 || !params.chipDeep || !IsFollowablePtrField(ptrField)) {
         return false;
     }
-    if (!SchemaNameAllowIncludesPtr(ptrField, schemaNameAllow, useNameAllow, params.chipDeep)) {
+    const std::string prefixed = pathPrefix.empty()
+        ? ptrField.name
+        : FormatPtrFollowName(pathPrefix, ptrField.name);
+    if (!SchemaNameAllowIncludesPtr(
+            ptrField, schemaNameAllow, useNameAllow, params.chipDeep, pathPrefix)) {
         return false;
     }
     bool ptrNameMatched = false;
-    if (!PtrNameAllowsFollow(ptrField, params, schema, &ptrNameMatched)) {
+    if (!PtrNameAllowsFollow(ptrField, params, schema, pathPrefix, &ptrNameMatched)) {
         return false;
     }
     // Bare PTR name match (or empty needle): skip nested schemaNameAllow
@@ -334,6 +355,18 @@ bool TryMatchPtrFollow(UnityDumper& dumper,
     if (!TryResolvePtrTarget(dumper, ptrField, nestedInstance, nestedKlass)) {
         return false; // null / unreadable — skip, do not consume cap
     }
+    // Path-ancestor cycle: hop 1 ancestors empty (self-PTR still follows).
+    // Hop 2: skip if next instance is scanned root or hop-1 target.
+    if (!followAncestors.empty()) {
+        if (nestedInstance == rootInstance) {
+            return false;
+        }
+        for (void* ancestor : followAncestors) {
+            if (ancestor == nestedInstance) {
+                return false;
+            }
+        }
+    }
 
     std::vector<FieldInfo> fields;
     try {
@@ -344,7 +377,7 @@ bool TryMatchPtrFollow(UnityDumper& dumper,
     }
     ExpandAllowlistedNestedLeaves(fields);
 
-    const std::string& pathPrefix = ptrField.name;
+    size_t nestedPtrFieldsFollowed = 0;
     // Hits stay rooted on the scanned instance (Drill re-resolves via path).
     for (const auto& field : fields) {
         if (stopToken.stop_requested()) {
@@ -355,39 +388,68 @@ bool TryMatchPtrFollow(UnityDumper& dumper,
             if (filterNestedByNameAllow
                 && !SchemaNameAllowIncludesCollection(
                     field, schemaNameAllow, useNameAllow, params.chipDeep,
-                    pathPrefix)) {
+                    prefixed)) {
                 continue;
             }
             TryMatchCollectionElements(
                 dumper, params, rootInstance, nestedKlass, field, schema,
-                pathPrefix, stopToken, out);
+                prefixed, stopToken, out);
             if (out.truncReason == ValueSearchTruncReason::HitCap) {
                 return true;
             }
             continue;
         }
         FieldInfo hitField = field;
-        hitField.name = FormatPtrFollowName(pathPrefix, field.name);
-        if (filterNestedByNameAllow
-            && !SchemaNameAllowContains(schemaNameAllow, hitField.name)) {
-            continue;
+        hitField.name = FormatPtrFollowName(prefixed, field.name);
+        if (!(filterNestedByNameAllow
+              && !SchemaNameAllowContains(schemaNameAllow, hitField.name))) {
+            if (FieldKindAllowed(hitField, params)
+                && NamePasses(hitField, params)
+                && ValuePasses(dumper, hitField, params)) {
+                out.hits.push_back(MakeHit(params, rootInstance, hitField));
+                if (out.hits.size() >= kValueSearchHitCap) {
+                    out.truncReason = ValueSearchTruncReason::HitCap;
+                    return true;
+                }
+            }
         }
-        if (!FieldKindAllowed(hitField, params)) {
-            continue;
-        }
-        if (!NamePasses(hitField, params)) {
-            continue;
-        }
-        if (!ValuePasses(dumper, hitField, params)) {
-            continue;
-        }
-        out.hits.push_back(MakeHit(params, rootInstance, hitField));
-        if (out.hits.size() >= kValueSearchHitCap) {
-            out.truncReason = ValueSearchTruncReason::HitCap;
-            return true;
+        // Follow hop-2: independent of chipPtr leaf. Nested ptrField stays
+        // short; recurse pathPrefix = prefixed (not Format(prefixed, name)).
+        if (remainingDepth > 1 && IsFollowablePtrField(field)
+            && nestedPtrFieldsFollowed < kValueSearchMaxPtrFieldsFollowed) {
+            followAncestors.push_back(nestedInstance);
+            if (TryMatchPtrFollowWithAncestors(
+                    dumper, params, rootInstance, field, schema, schemaNameAllow,
+                    useNameAllow, prefixed, remainingDepth - 1, followAncestors,
+                    stopToken, out)) {
+                ++nestedPtrFieldsFollowed;
+            }
+            followAncestors.pop_back();
+            if (out.truncReason == ValueSearchTruncReason::HitCap) {
+                return true;
+            }
         }
     }
     return true;
+}
+} // namespace
+
+bool TryMatchPtrFollow(UnityDumper& dumper,
+                       const ValueSearchParams& params,
+                       void* rootInstance,
+                       const FieldInfo& ptrField,
+                       const ValueSearchClassSchema* schema,
+                       const std::unordered_set<std::string>& schemaNameAllow,
+                       bool useNameAllow,
+                       const std::string& pathPrefix,
+                       size_t remainingDepth,
+                       std::stop_token stopToken,
+                       ValueSearchScanResult& out) {
+    std::vector<void*> followAncestors;
+    return TryMatchPtrFollowWithAncestors(
+        dumper, params, rootInstance, ptrField, schema, schemaNameAllow,
+        useNameAllow, pathPrefix, remainingDepth, followAncestors, stopToken,
+        out);
 }
 } // namespace Engine::Dumper
 

@@ -4,15 +4,35 @@
 
 #include "gui/session_state.h"
 
+#include "dumper/instances/collection_view.h"
 #include "dumper/value_search/value_search_element_leaves.h"
 #include "dumper/value_search/value_search_match.h"
 #include "dumper/value_search/value_search_nested_leaves.h"
 #include "dumper/value_search/value_search_ptr_follow.h"
+#include "gui/state/navigation/history_steady_time.h"
+#include "gui/state/navigation/inspector_navigation_snapshot.h"
 #include "types/memory_guard.h"
 #include "types/type_classifier.h"
+#include "unity_resolver.h"
+
+#include <charconv>
+#include <cstring>
+#include <mutex>
+#include <string>
+#include <vector>
 
 namespace Gui
 {
+bool IsCustomValueTypeElementRow(const Engine::FieldInfo& field, Engine::UnityDumper& dumper) {
+    if (!field.elementKlass || field.isEnum) {
+        return false;
+    }
+    if (!dumper.IsValueTypeKlass(field.elementKlass)) {
+        return false;
+    }
+    return !Engine::Types::IsInlineValueStruct(Engine::Types::GetCategory(field.type));
+}
+
 namespace
 {
 const Engine::FieldInfo* FindFieldByName(const std::vector<Engine::FieldInfo>& fields,
@@ -23,6 +43,160 @@ const Engine::FieldInfo* FindFieldByName(const std::vector<Engine::FieldInfo>& f
         }
     }
     return nullptr;
+}
+
+bool IsSynthesizedFieldsElementName(const std::string& name) {
+    size_t index = 0;
+    return Engine::Dumper::ParseSynthesizedFieldsElementIndex(name, index);
+}
+
+// Labels are "[i]" or "[i] TypeName". ParseSynthesizedFieldsElementIndex
+// only accepts exact "[i]" (back()==']'). Stop at the first ']'.
+bool ParseLabelBracketIndexPrefix(const std::string& label, size_t& outIndex) {
+    if (label.size() < 3 || label.front() != '[') {
+        return false;
+    }
+    const size_t close = label.find(']');
+    if (close == std::string::npos || close < 2) {
+        return false;
+    }
+    const char* begin = label.data() + 1;
+    const char* end = label.data() + close;
+    size_t index = 0;
+    auto [ptr, ec] = std::from_chars(begin, end, index);
+    if (ec != std::errc{} || ptr != end) {
+        return false;
+    }
+    outIndex = index;
+    return true;
+}
+
+void SplitClassName(const std::string& display, std::string& ns, std::string& name) {
+    const size_t pos = display.rfind("::");
+    if (pos == std::string::npos) {
+        ns.clear();
+        name = display;
+        return;
+    }
+    ns = display.substr(0, pos);
+    name = display.substr(pos + 2);
+}
+
+void SetReplayStatus(ControlPanelSessionState& state, const char* message) {
+    state.navigationFeedback.MarkStatus(message, State::HistorySteadyNowSeconds());
+}
+
+void* ResolveImagePtr(const ControlPanelSessionState& state, const std::string& imageName) {
+    if (imageName.empty() || imageName == "<image>") {
+        return nullptr;
+    }
+    for (const auto& img : *state.GetImageCacheSnapshot()) {
+        if (img.name == imageName) {
+            return img.imagePtr;
+        }
+    }
+    return nullptr;
+}
+
+std::string LookupImageName(const ControlPanelSessionState& state, void* imagePtr) {
+    if (!imagePtr) {
+        return {};
+    }
+    for (const auto& img : *state.GetImageCacheSnapshot()) {
+        if (img.imagePtr == imagePtr) {
+            return img.name;
+        }
+    }
+    return {};
+}
+
+void SyncImageComboCaption(ControlPanelSessionState& state,
+                           const std::string& imageName,
+                           void* imagePtr) {
+    std::string name = imageName;
+    if (name.empty() || name == "<image>") {
+        name = LookupImageName(state, imagePtr);
+    }
+    if (name.empty() || name == "<image>") {
+        return;
+    }
+    strncpy_s(state.imgSearchBuffer, sizeof(state.imgSearchBuffer), name.c_str(), _TRUNCATE);
+}
+
+void* ResolveClassPtr(const ControlPanelSessionState& state,
+                      void* imagePtr,
+                      const std::string& ns,
+                      const std::string& name) {
+    if (!imagePtr || name.empty() || name == "<class>") {
+        return nullptr;
+    }
+
+    const auto& exp = Engine::Unity.module.exports;
+    if (exp.fnGetClass) {
+        if (void* klass = exp.fnGetClass(imagePtr, ns.c_str(), name.c_str())) {
+            return klass;
+        }
+    }
+
+    if (state.selectedImage != imagePtr) {
+        return nullptr;
+    }
+    const std::string display = ns.empty() ? name : (ns + "::" + name);
+    for (const auto& cl : *state.GetClassCacheSnapshot()) {
+        if (cl.ns == ns && cl.name == name) {
+            return cl.klassPtr;
+        }
+        const std::string clDisplay = cl.ns.empty() ? cl.name : (cl.ns + "::" + cl.name);
+        if (clDisplay == display) {
+            return cl.klassPtr;
+        }
+    }
+    return nullptr;
+}
+
+bool BookmarkRecipeHopsAreReplayable(const State::NavigationSnapshot& snap) {
+    if (snap.breadcrumbs.size() <= 1) {
+        return true;
+    }
+    for (size_t i = 1; i < snap.breadcrumbs.size(); ++i) {
+        const InspectorBreadcrumb& hop = snap.breadcrumbs[i];
+        const InspectorBreadcrumb& parent = snap.breadcrumbs[i - 1];
+        if (hop.isCollection) {
+            if (hop.sourceField.name.empty()
+                || IsSynthesizedFieldsElementName(hop.sourceField.name)) {
+                return false;
+            }
+            continue;
+        }
+        if (hop.isValueTypeSlot) {
+            if (!parent.isCollection) {
+                return false;
+            }
+            if (hop.hasValueTypeIndex) {
+                continue;
+            }
+            size_t index = 0;
+            if (ParseLabelBracketIndexPrefix(hop.label, index)) {
+                continue;
+            }
+            return false;
+        }
+        if (parent.isCollection) {
+            size_t index = 0;
+            if (Engine::Dumper::ParseSynthesizedFieldsElementIndex(hop.label, index)) {
+                continue;
+            }
+            if (hop.hasValueTypeIndex) {
+                continue;
+            }
+            return false;
+        }
+        if (hop.sourceField.name.empty()
+            || IsSynthesizedFieldsElementName(hop.sourceField.name)) {
+            return false;
+        }
+    }
+    return true;
 }
 
 bool AssignRootBreadcrumb(ControlPanelSessionState& state, void* klass, void* instance) {
@@ -87,8 +261,9 @@ bool PushCollectionCrumb(ControlPanelSessionState& state,
         && category != Engine::Types::TypeCategory::LIST) {
         return false;
     }
-    auto previewRows = state.dumper->GetCollectionView(field);
-    if (previewRows.empty()) {
+    bool emptyButReadable = false;
+    auto previewRows = state.dumper->GetCollectionView(field, 0, &emptyButReadable);
+    if (previewRows.empty() && !emptyButReadable) {
         return false;
     }
     InspectorBreadcrumb step{};
@@ -97,6 +272,32 @@ bool PushCollectionCrumb(ControlPanelSessionState& state,
     step.label = field.name + " " + (field.valueDisplay.empty() ? std::string("[]") : field.valueDisplay);
     step.isCollection = true;
     step.sourceField = field;
+    state.walker.stack.push_back(std::move(step));
+    return true;
+}
+
+bool PushValueTypeSlotCrumb(ControlPanelSessionState& state,
+                            const Engine::FieldInfo& wrapperField,
+                            void* elementKlass,
+                            size_t index,
+                            const std::string& elementTypeName) {
+    if (state.walker.stack.empty()) {
+        return false;
+    }
+    const InspectorBreadcrumb& parent = state.walker.stack.back();
+    InspectorBreadcrumb step{};
+    step.klass = parent.klass;
+    step.instance = parent.instance;
+    step.label = "[" + std::to_string(index) + "]";
+    if (!elementTypeName.empty()) {
+        step.label += " " + elementTypeName;
+    }
+    step.isCollection = false;
+    step.sourceField = wrapperField;
+    step.isValueTypeSlot = true;
+    step.valueTypeElementKlass = elementKlass;
+    step.valueTypeIndex = index;
+    step.hasValueTypeIndex = true;
     state.walker.stack.push_back(std::move(step));
     return true;
 }
@@ -145,8 +346,17 @@ bool TryOpenCollectionElementPath(ControlPanelSessionState& state,
     if (index >= elements.size()) {
         return false;
     }
-    if (preferElementObject) {
-        (void)TryPushCollectionElementObject(state, elements[index]);
+    if (preferElementObject && state.dumper) {
+        Engine::FieldInfo element = elements[index];
+        if (!element.elementKlass) {
+            element.elementKlass = state.dumper->TryResolveCollectionElementKlass(*container);
+        }
+        if (IsCustomValueTypeElementRow(element, *state.dumper)) {
+            (void)PushValueTypeSlotCrumb(state, *container, element.elementKlass, index, element.type);
+        }
+        else {
+            (void)TryPushCollectionElementObject(state, element);
+        }
     }
     return true;
 }
@@ -222,6 +432,136 @@ bool ApplySearchHitPath(ControlPanelSessionState& state,
     return false;
 }
 
+bool LoadOwnerFields(ControlPanelSessionState& state,
+                     void*& ownerKlass,
+                     void*& ownerInstance,
+                     std::vector<Engine::FieldInfo>& fields) {
+    if (state.walker.stack.empty() || !state.dumper) {
+        return false;
+    }
+    const InspectorBreadcrumb& top = state.walker.stack.back();
+    try {
+        if (top.isValueTypeSlot) {
+            auto rows = state.dumper->GetCollectionView(top.sourceField, top.valueTypeIndex + 1);
+            if (top.valueTypeIndex >= rows.size()) {
+                return false;
+            }
+            const Engine::FieldInfo& liveRow = rows[top.valueTypeIndex];
+            if (!liveRow.hasValue || liveRow.valueAddress == 0) {
+                return false;
+            }
+            ownerKlass = liveRow.elementKlass ? liveRow.elementKlass : top.valueTypeElementKlass;
+            ownerInstance = reinterpret_cast<void*>(liveRow.valueAddress);
+            if (!ownerKlass || !ownerInstance) {
+                return false;
+            }
+            fields = state.dumper->GetRawFields(ownerKlass, ownerInstance);
+            return true;
+        }
+        ownerKlass = top.klass;
+        ownerInstance = top.instance;
+        if (!ownerKlass || !ownerInstance) {
+            return false;
+        }
+        fields = state.dumper->GetRawFields(ownerKlass, ownerInstance);
+        return true;
+    }
+    catch (...) {
+        return false;
+    }
+}
+
+bool ReplayOneHop(ControlPanelSessionState& state, const InspectorBreadcrumb& hop) {
+    if (state.walker.stack.empty() || !state.dumper) {
+        return false;
+    }
+    const InspectorBreadcrumb parent = state.walker.stack.back();
+
+    if (hop.isCollection) {
+        if (hop.sourceField.name.empty()
+            || IsSynthesizedFieldsElementName(hop.sourceField.name)) {
+            return false;
+        }
+        void* fieldKlass = nullptr;
+        void* fieldInstance = nullptr;
+        std::vector<Engine::FieldInfo> fields;
+        if (!LoadOwnerFields(state, fieldKlass, fieldInstance, fields)) {
+            return false;
+        }
+        const Engine::FieldInfo* live = FindFieldByName(fields, hop.sourceField.name);
+        if (!live) {
+            return false;
+        }
+        return PushCollectionCrumb(state, *live, parent.klass, parent.instance);
+    }
+
+    if (hop.isValueTypeSlot) {
+        if (!parent.isCollection) {
+            return false;
+        }
+        size_t index = 0;
+        if (hop.hasValueTypeIndex) {
+            index = hop.valueTypeIndex;
+        }
+        else if (!ParseLabelBracketIndexPrefix(hop.label, index)) {
+            return false;
+        }
+        std::vector<Engine::FieldInfo> rows;
+        try {
+            rows = state.dumper->GetCollectionView(parent.sourceField, index + 1);
+        }
+        catch (...) {
+            return false;
+        }
+        if (index >= rows.size()) {
+            return false;
+        }
+        const Engine::FieldInfo& row = rows[index];
+        void* elementKlass = row.elementKlass ? row.elementKlass : hop.valueTypeElementKlass;
+        return PushValueTypeSlotCrumb(state, parent.sourceField, elementKlass,
+                                      index, row.type);
+    }
+
+    if (parent.isCollection) {
+        size_t index = 0;
+        bool haveIndex = Engine::Dumper::ParseSynthesizedFieldsElementIndex(hop.label, index);
+        if (!haveIndex && hop.hasValueTypeIndex) {
+            index = hop.valueTypeIndex;
+            haveIndex = true;
+        }
+        if (!haveIndex) {
+            return false;
+        }
+        std::vector<Engine::FieldInfo> rows;
+        try {
+            rows = state.dumper->GetCollectionView(parent.sourceField);
+        }
+        catch (...) {
+            return false;
+        }
+        if (index >= rows.size()) {
+            return false;
+        }
+        return PushPointerCrumb(state, rows[index].valueAddress, rows[index].name);
+    }
+
+    if (hop.sourceField.name.empty()
+        || IsSynthesizedFieldsElementName(hop.sourceField.name)) {
+        return false;
+    }
+    void* fieldKlass = nullptr;
+    void* fieldInstance = nullptr;
+    std::vector<Engine::FieldInfo> fields;
+    if (!LoadOwnerFields(state, fieldKlass, fieldInstance, fields)) {
+        return false;
+    }
+    const Engine::FieldInfo* live = FindFieldByName(fields, hop.sourceField.name);
+    if (!live || !live->hasValue || live->valueAddress == 0) {
+        return false;
+    }
+    return PushPointerCrumb(state, live->valueAddress, live->name);
+}
+
 void LoadWalkerStackTop(ControlPanelSessionState& state) {
     if (state.walker.stack.empty() || !state.dumper) {
         return;
@@ -231,14 +571,161 @@ void LoadWalkerStackTop(ControlPanelSessionState& state) {
     if (top.isCollection) {
         state.StartCollectionLoad(state.dumper, top.sourceField, top.klass, top.instance);
     }
+    else if (top.isValueTypeSlot) {
+        state.StartValueTypeSlotLoad(state.dumper, top.sourceField, top.klass, top.instance,
+                                     top.valueTypeElementKlass, top.valueTypeIndex);
+    }
     else {
         state.StartInspectorLoadAtInstance(state.dumper, top.klass, top.instance);
     }
 }
 } // namespace
 
+State::HistoryRestoreResult ControlPanelSessionState::TryReplayBookmarkRecipe(
+    const State::NavigationSnapshot& snap) {
+    if (!dumper) {
+        SetReplayStatus(*this, "Dumper not initialized.");
+        return State::HistoryRestoreResult::DumperUnavailable;
+    }
+
+    std::vector<void*> previousCompare;
+    void* previousCompareKlass = nullptr;
+    {
+        std::lock_guard<std::mutex> lock(inspector.mutex);
+        previousCompare = inspector.rootInstanceCandidates;
+        previousCompareKlass = inspector.rootInstanceClassPtr;
+        inspector.rootInstanceCandidates.clear();
+        inspector.rootInstanceClassPtr = nullptr;
+        inspector.NoteCacheMutated();
+    }
+
+    auto restoreCompare = [&]() {
+        std::lock_guard<std::mutex> lock(inspector.mutex);
+        inspector.rootInstanceCandidates = previousCompare;
+        inspector.rootInstanceClassPtr = previousCompareKlass;
+        inspector.NoteCacheMutated();
+    };
+
+    if (snap.breadcrumbs.size() > 1 && snap.rootClassName.empty()) {
+        restoreCompare();
+        SetReplayStatus(*this,
+            "Bookmark path cannot be replayed — nested hops are missing the root class.");
+        return State::HistoryRestoreResult::StaleBreadcrumb;
+    }
+    if (!BookmarkRecipeHopsAreReplayable(snap)) {
+        restoreCompare();
+        SetReplayStatus(*this,
+            "Bookmark path cannot be replayed — nested hops are missing field names.");
+        return State::HistoryRestoreResult::StaleBreadcrumb;
+    }
+
+    void* imagePtr = snap.imagePtr;
+    if (!imagePtr) {
+        imagePtr = ResolveImagePtr(*this, snap.imageName);
+    }
+
+    void* rootKlass = nullptr;
+    if (!snap.rootClassName.empty()) {
+        std::string ns;
+        std::string name;
+        SplitClassName(snap.rootClassName, ns, name);
+        rootKlass = ResolveClassPtr(*this, imagePtr, ns, name);
+    }
+    else if (snap.breadcrumbs.size() <= 1) {
+        if (snap.classPtr) {
+            rootKlass = snap.classPtr;
+        }
+        else {
+            std::string ns;
+            std::string name;
+            SplitClassName(snap.className, ns, name);
+            rootKlass = ResolveClassPtr(*this, imagePtr, ns, name);
+        }
+    }
+    else {
+        restoreCompare();
+        SetReplayStatus(*this,
+            "Bookmark path cannot be replayed — nested hops are missing the root class.");
+        return State::HistoryRestoreResult::StaleBreadcrumb;
+    }
+
+    if (!rootKlass) {
+        restoreCompare();
+        SetReplayStatus(*this, "Bookmarked root class could not be resolved.");
+        return State::HistoryRestoreResult::StaleBreadcrumb;
+    }
+
+    const std::vector<void*> live = dumper->GetLiveInstances(rootKlass);
+    if (live.empty() || live[0] == nullptr) {
+        restoreCompare();
+        std::string msg = "No live instance found to refresh this bookmark";
+        if (!snap.rootClassName.empty()) {
+            msg += " (";
+            msg += snap.rootClassName;
+            msg += ")";
+        }
+        else if (!snap.className.empty()) {
+            msg += " (";
+            msg += snap.className;
+            msg += ")";
+        }
+        msg += ".";
+        SetReplayStatus(*this, msg.c_str());
+        return State::HistoryRestoreResult::StaleInstance;
+    }
+
+    const auto previousStack = walker.stack;
+    void* const previousClass = selectedClass;
+    void* const previousImage = selectedImage;
+
+    if (imagePtr) {
+        if (selectedImage != imagePtr) {
+            dumper->ClearValueSearchSchemas();
+        }
+        selectedImage = imagePtr;
+    }
+
+    if (!AssignRootBreadcrumb(*this, rootKlass, live[0])) {
+        walker.stack = previousStack;
+        selectedClass = previousClass;
+        selectedImage = previousImage;
+        restoreCompare();
+        SetReplayStatus(*this, "No live instance found to refresh this bookmark.");
+        return State::HistoryRestoreResult::StaleInstance;
+    }
+
+    for (size_t i = 1; i < snap.breadcrumbs.size(); ++i) {
+        if (!ReplayOneHop(*this, snap.breadcrumbs[i])) {
+            walker.stack = previousStack;
+            selectedClass = previousClass;
+            selectedImage = previousImage;
+            restoreCompare();
+            SetReplayStatus(*this,
+                "Breadcrumb target is no longer valid — nested object may have been collected.");
+            return State::HistoryRestoreResult::StaleBreadcrumb;
+        }
+    }
+
+    {
+        std::lock_guard<std::mutex> lock(inspector.mutex);
+        editBufferStore.Clear();
+        enumLiteralCache.Clear();
+        inspector.cache.methods.clear();
+        inspector.cache.methodsCatalogLoaded = false;
+        inspector.selectedInstanceIndex = -1;
+        inspector.rootInstanceCandidates = live;
+        inspector.rootInstanceClassPtr = rootKlass;
+        inspector.NoteCacheMutated();
+    }
+
+    LoadWalkerStackTop(*this);
+    SyncImageComboCaption(*this, snap.imageName, imagePtr);
+    navigationFeedback.lastAsyncRecordedInstance =
+        walker.stack.empty() ? nullptr : walker.stack.back().instance;
+    return State::HistoryRestoreResult::AppliedLiveRefind;
+}
+
 // ==== Recursive Memory Walker ========================================
-// Stack of inspector views: root instance at bottom, pointer field clicks push.
 // NavigateBackTo truncates; ResetNavigationStack clears.
 
 bool ControlPanelSessionState::NavigateIntoPointer(uintptr_t fieldValueAddress, std::string fieldLabel) {
@@ -294,11 +781,12 @@ bool ControlPanelSessionState::NavigateIntoCollection(const Engine::FieldInfo& f
         return false;
     }
 
-    // Probe by actually synthesizing the view; if the dumper returns an
-    // empty vector the header was unreadable / the pointer was null and
-    // we don't push anything (same shape as NavigateIntoPointer's check).
-    auto previewRows = dumper->GetCollectionView(field);
-    if (previewRows.empty()) {
+    // Probe by actually synthesizing the view. Empty rows are OK when the
+    // header is readable and logical length is 0 (empty-success). Still
+    // refuse null wrapper / null _items / unreadable header.
+    bool emptyButReadable = false;
+    auto previewRows = dumper->GetCollectionView(field, 0, &emptyButReadable);
+    if (previewRows.empty() && !emptyButReadable) {
         return false;
     }
 
@@ -324,6 +812,27 @@ bool ControlPanelSessionState::NavigateIntoCollection(const Engine::FieldInfo& f
 
     StartCollectionLoad(dumper, field, parentKlass, parentInstance);
     RecordNavigationEvent(("Collection: " + field.name).c_str());
+    return true;
+}
+
+bool ControlPanelSessionState::NavigateIntoValueTypeSlot(const Engine::FieldInfo& elementRow) {
+    if (!dumper || walker.stack.empty() || !walker.stack.back().isCollection) {
+        return false;
+    }
+    size_t index = 0;
+    if (!Engine::Dumper::ParseSynthesizedFieldsElementIndex(elementRow.name, index)) {
+        return false;
+    }
+
+    const InspectorBreadcrumb& parent = walker.stack.back();
+    if (!PushValueTypeSlotCrumb(*this, parent.sourceField, elementRow.elementKlass, index, elementRow.type)) {
+        return false;
+    }
+
+    const InspectorBreadcrumb& top = walker.stack.back();
+    StartValueTypeSlotLoad(dumper, top.sourceField, top.klass, top.instance,
+                           top.valueTypeElementKlass, top.valueTypeIndex);
+    RecordNavigationEvent(("Drill: " + top.label).c_str());
     return true;
 }
 
@@ -373,7 +882,8 @@ void ControlPanelSessionState::NavigateBackTo(size_t breadcrumbIndex) {
     walker.stack.resize(breadcrumbIndex + 1);
 
     // Pop tail levels whose instance no longer decodes (GC / unload).
-    // Collection crumbs share the parent instance — same liveness probe.
+    // Collection crumbs and value-type slot crumbs share the owner instance —
+    // same liveness probe. Do not treat a raw slot address as identity.
     if (dumper) {
         while (!walker.stack.empty()) {
             void* probeKlass = nullptr;
@@ -398,6 +908,10 @@ void ControlPanelSessionState::NavigateBackTo(size_t breadcrumbIndex) {
     selectedClass = live.klass;
     if (live.isCollection) {
         StartCollectionLoad(dumper, live.sourceField, live.klass, live.instance);
+    }
+    else if (live.isValueTypeSlot) {
+        StartValueTypeSlotLoad(dumper, live.sourceField, live.klass, live.instance,
+                               live.valueTypeElementKlass, live.valueTypeIndex);
     }
     else {
         StartInspectorLoadAtInstance(dumper, live.klass, live.instance);

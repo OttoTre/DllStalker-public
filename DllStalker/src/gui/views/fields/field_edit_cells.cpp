@@ -5,6 +5,7 @@
 #include "gui/views/fields/field_edit_cells.h"
 
 #include "gui/session_state.h"
+#include "dumper/instances/collection_view.h"
 #include "types/type_classifier.h"
 #include "types/value_decoder.h"
 
@@ -18,6 +19,63 @@
 
 namespace Gui::Views
 {
+namespace
+{
+// Before writing a synthesized collection element, confirm the slot still
+// lies in the live Array/List buffer for the current walker collection.
+bool TrySetFieldValueWithCollectionGuard(ControlPanelSessionState& state,
+                                         const Engine::FieldInfo& field,
+                                         const std::string& newValue,
+                                         std::string* error) {
+    if (!state.dumper) {
+        if (error) {
+            *error = "Dumper unavailable";
+        }
+        return false;
+    }
+
+    if (Engine::Dumper::IsSynthesizedCollectionElementName(field.name)
+        && !state.walker.stack.empty()
+        && state.walker.stack.back().isCollection) {
+        if (!state.dumper->IsCollectionElementAddressLive(
+                state.walker.stack.back().sourceField, field.valueAddress, error)) {
+            if (error && error->empty()) {
+                *error = "Collection element address out of range";
+            }
+            return false;
+        }
+    }
+
+    return state.dumper->SetFieldValue(field, newValue, error);
+}
+
+// Matches value_writer bool tokens (case-insensitive): true/1/yes or false/0/no.
+bool TryParseFieldDisplayBool(const std::string& text, bool& out) {
+    if (text.empty() || text == "-" || text == "??") {
+        return false;
+    }
+    std::string low = text;
+    while (!low.empty() && std::isspace(static_cast<unsigned char>(low.front()))) {
+        low.erase(low.begin());
+    }
+    while (!low.empty() && std::isspace(static_cast<unsigned char>(low.back()))) {
+        low.pop_back();
+    }
+    for (char& c : low) {
+        c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+    }
+    if (low == "true" || low == "1" || low == "yes") {
+        out = true;
+        return true;
+    }
+    if (low == "false" || low == "0" || low == "no") {
+        out = false;
+        return true;
+    }
+    return false;
+}
+} // namespace
+
 bool IsEditableFieldType(const Engine::FieldInfo& field) {
     // Enums: FieldInfo::isEnum (not GetCategory — dotted enum type names → PTR).
     if (field.isEnum) {
@@ -57,34 +115,6 @@ bool TryParseFieldDisplayInt64(const std::string& text, int64_t& out) {
     }
 }
 
-namespace {
-// Matches value_writer bool tokens (case-insensitive): true/1/yes or false/0/no.
-bool TryParseFieldDisplayBool(const std::string& text, bool& out) {
-    if (text.empty() || text == "-" || text == "??") {
-        return false;
-    }
-    std::string low = text;
-    while (!low.empty() && std::isspace(static_cast<unsigned char>(low.front()))) {
-        low.erase(low.begin());
-    }
-    while (!low.empty() && std::isspace(static_cast<unsigned char>(low.back()))) {
-        low.pop_back();
-    }
-    for (char& c : low) {
-        c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
-    }
-    if (low == "true" || low == "1" || low == "yes") {
-        out = true;
-        return true;
-    }
-    if (low == "false" || low == "0" || low == "no") {
-        out = false;
-        return true;
-    }
-    return false;
-}
-} // namespace
-
 void RenderScalarFieldEditCell(const Engine::FieldInfo& field,
                                ControlPanelSessionState& state,
                                size_t fieldIndex,
@@ -107,14 +137,14 @@ void RenderScalarFieldEditCell(const Engine::FieldInfo& field,
 
     ImGui::PushID(static_cast<int>(fieldIndex) + 10000);
     const float availWidth = ImGui::GetContentRegionAvail().x;
-    constexpr float applyBtnWidth = 28.0f;
+    const float applyBtnWidth = ImGui::CalcTextSize("OK").x + ImGui::GetStyle().FramePadding.x * 2.0f;
     constexpr float spacing = 4.0f;
     ImGui::SetNextItemWidth(availWidth - applyBtnWidth - spacing);
     ImGui::InputText("##FieldEdit", buffer.data(), buffer.size());
     ImGui::SameLine(0.0f, spacing);
     if (ImGui::Button("OK", ImVec2(applyBtnWidth, 0))) {
         std::string error;
-        if (state.dumper->SetFieldValue(field, buffer.data(), &error)) {
+        if (TrySetFieldValueWithCollectionGuard(state, field, buffer.data(), &error)) {
             snprintf(editStatus, 128, "Applied: %s", field.name.c_str());
             editStatusAtSeconds = static_cast<float>(ImGui::GetTime());
             State::FieldAuditPayload audit{};
@@ -149,7 +179,7 @@ void RenderBoolFieldEditCell(const Engine::FieldInfo& field,
     if (ImGui::Checkbox("##BoolField", &checked)) {
         const char* payload = checked ? "true" : "false";
         std::string error;
-        if (state.dumper->SetFieldValue(field, payload, &error)) {
+        if (TrySetFieldValueWithCollectionGuard(state, field, payload, &error)) {
             snprintf(editStatus, 128, "Applied: %s", field.name.c_str());
             editStatusAtSeconds = static_cast<float>(ImGui::GetTime());
             State::FieldAuditPayload audit{};
@@ -229,7 +259,8 @@ void RenderEnumFieldEditCell(const Engine::FieldInfo& field,
                  && currentItem != previousItem) {
             state.enumLiteralCache.customModeKeys.erase(field.valueAddress);
             std::string error;
-            if (state.dumper->SetFieldValue(field, std::to_string(lits[static_cast<size_t>(currentItem)].value), &error)) {
+            if (TrySetFieldValueWithCollectionGuard(
+                    state, field, std::to_string(lits[static_cast<size_t>(currentItem)].value), &error)) {
                 snprintf(editStatus, 128, "Applied: %s", field.name.c_str());
                 editStatusAtSeconds = static_cast<float>(ImGui::GetTime());
                 State::FieldAuditPayload audit{};

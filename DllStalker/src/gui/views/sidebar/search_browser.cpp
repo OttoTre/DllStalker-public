@@ -8,6 +8,7 @@
 #include "gui/config.h"
 #include "gui/session_state.h"
 #include "gui/views/sidebar/class_browser.h"
+#include "gui/views/sidebar/methods_browser.h"
 
 #include "imgui.h"
 
@@ -114,7 +115,7 @@ void RenderSearchBrowser(ControlPanelSessionState& state) {
     }
     ImGui::SameLine();
     if (UiTheme::IconDeepButton("##vs_deep", state.valueSearch.chipDeep,
-                                "Search inside Array/List elements and one PTR hop")) {
+                                "Search inside Array/List elements and follow PTR (depth 2)")) {
         state.valueSearch.chipDeep = !state.valueSearch.chipDeep;
     }
 
@@ -195,6 +196,11 @@ void RenderSidebarBrowser(ControlPanelSessionState& state) {
     if (ImGui::BeginTabItem("Classes")) {
         state.sidebarBrowserMode = 0;
         RenderClassBrowser(state);
+        ImGui::EndTabItem();
+    }
+    if (ImGui::BeginTabItem("Methods")) {
+        state.sidebarBrowserMode = 2;
+        RenderMethodsBrowser(state);
         ImGui::EndTabItem();
     }
     if (ImGui::BeginTabItem("Search")) {

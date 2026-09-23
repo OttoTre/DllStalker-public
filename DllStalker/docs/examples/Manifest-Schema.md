@@ -4,7 +4,7 @@ Script packages live under `stalker_runtime/mods` next to the injected DllStalke
 
 The Scripting dock supports three package shapes:
 
-- A **directory** with `main.lua` in the folder root. `manifest.json` is optional; omit it for basic Safe scripts (folder name + defaults, **`main.lua` entry only**).
+- A **directory** with `main.lua` in the folder root. `manifest.json` is optional; omit it for basic Safe scripts (folder name + defaults, `main.lua` **entry only**).
 - A **directory** with `manifest.json` when you need Curated profile, custom `entry_file`, display metadata, or timing budgets.
 - A **loose** root-level `.lua` file directly under `mods/` (any file name). Runs as Safe with default timing budgets.
 
@@ -46,7 +46,7 @@ Include optional fields only when they differ from defaults. A full field listin
 }
 ```
 
-Omit `entry_file` when using `main.lua`, `profile` when using Safe, and timing fields when using parser defaults.
+Omit `entry_file` when using `main.lua`, `profile` when using Safe and timing fields, when using parser defaults.
 
 ## Fields
 
@@ -63,8 +63,6 @@ Omit `entry_file` when using `main.lua`, `profile` when using Safe, and timing f
 | `command_timeout_ms` | integer | No       | `1500`              | Clamped to `100` through `10000`.                                                                          |
 | `soft_timeout_ms`    | integer | No       | `2000`              | Clamped to `100` through `10000`.                                                                          |
 | `hard_quarantine_ms` | integer | No       | `5000`              | Clamped to `500` through `30000`.                                                                          |
-
-
 
 
 ## Entry File Rules

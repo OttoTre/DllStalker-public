@@ -36,7 +36,7 @@ struct ValueSearchModel {
     bool chipNumber = true;
     bool chipString = true;
     bool chipPtr    = true;
-    bool chipDeep   = false;
+    bool chipDeep   = true;
     bool nameMatchStrict  = false; // ~ fuzzy / = strict
     bool valueMatchStrict = true;
 

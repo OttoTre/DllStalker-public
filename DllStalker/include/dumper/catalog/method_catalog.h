@@ -4,6 +4,7 @@
 
 #ifdef ENABLE_DUMPER
 
+#include <cstddef>
 #include <vector>
 
 #include "unity_resolver.h"
@@ -22,6 +23,8 @@ public:
     explicit MethodCatalog(UnityResolver& resolver);
 
     std::vector<MethodInfo> GetRawMethods(void* klass);
+    std::vector<MethodNameRow> EnumerateMethodNames(void* klass, size_t maxPerClass,
+                                                    bool* truncated = nullptr);
 
 private:
     UnityResolver& m_resolver;

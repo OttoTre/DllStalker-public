@@ -33,6 +33,10 @@ public:
     std::vector<ClassInfo>  GetRawClasses(void* image)               { return m_classes.GetRawClasses(image); }
     std::vector<ImageInfo>  GetLoadedImages()                         { return m_classes.GetLoadedImages(); }
     std::vector<MethodInfo> GetRawMethods(void* klass)                { return m_methods.GetRawMethods(klass); }
+    std::vector<MethodNameRow> EnumerateMethodNames(void* klass, size_t maxPerClass,
+                                                    bool* truncated = nullptr) {
+        return m_methods.EnumerateMethodNames(klass, maxPerClass, truncated);
+    }
     std::vector<FieldInfo>  GetRawFields(void* klass)                 { return m_fields.GetRawFields(klass); }
     std::vector<FieldInfo>  GetRawFields(void* klass, void* instance,
                                          bool* enumerationComplete = nullptr,
@@ -41,6 +45,13 @@ public:
     }
     bool SetFieldValue(const FieldInfo& field, const std::string& newValue, std::string* error = nullptr) {
         return m_fields.SetFieldValue(field, newValue, error);
+    }
+
+    // Live Array/List bounds check for a synthesized element write target.
+    bool IsCollectionElementAddressLive(const FieldInfo& collectionField,
+                                        uintptr_t elementAddress,
+                                        std::string* error = nullptr) const {
+        return m_collection.IsAddressInLiveElementBuffer(collectionField, elementAddress, error);
     }
 
     std::vector<EnumLiteral> GetEnumLiterals(void* enumKlass) {
@@ -69,11 +80,17 @@ public:
         return m_identity.IsOrInheritsFrom(klass, targetName);
     }
 
-    // maxElements: 0 = uncapped (Inspector). Search/Drill pass a bound so
-    // expand+decode stops early (see kValueSearchMaxCollectionElements).
+    // maxElements: 0 = uncapped (Inspector). Scan expand uses
+    // kValueSearchMaxCollectionElements; resolve/nav uses index+1.
+    // outEmptyButReadable: readable header + logical length 0 (no dummy rows).
     std::vector<FieldInfo> GetCollectionView(const FieldInfo& field,
-                                             size_t maxElements = 0) const {
-        return m_collection.GetCollectionView(field, maxElements);
+                                             size_t maxElements = 0,
+                                             bool* outEmptyButReadable = nullptr) const {
+        return m_collection.GetCollectionView(field, maxElements, outEmptyButReadable);
+    }
+    bool TryWriteListLogicalSize(const FieldInfo& collectionField,
+                                 std::string* error = nullptr) const {
+        return m_collection.TryWriteListLogicalSize(collectionField, error);
     }
 
     // Deep Search / schema: ARRAY/LIST element klass (see CollectionView).

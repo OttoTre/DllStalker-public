@@ -252,6 +252,7 @@
     <ClInclude Include="include\gui\views\sidebar\image_picker.h" />
     <ClInclude Include="include\gui\views\sidebar\class_browser.h" />
     <ClInclude Include="include\gui\views\sidebar\search_browser.h" />
+    <ClInclude Include="include\gui\views\sidebar\methods_browser.h" />
     <ClInclude Include="include\gui\views\sidebar\class_label_lookup.h" />
     <ClInclude Include="include\gui\views\inspector\inspector_frame.h" />
     <ClInclude Include="include\gui\views\inspector\breadcrumb_bar.h" />
@@ -347,6 +348,8 @@
     <ClInclude Include="include\gui\state\fields\value_search_model.h" />
     <ClInclude Include="include\gui\state\runtime\call_log_model.h" />
     <ClInclude Include="include\gui\state\runtime\script_model.h" />
+    <ClInclude Include="include\gui\state\runtime\method_search_model.h" />
+    <ClInclude Include="include\gui\state\runtime\session_persist.h" />
     <ClInclude Include="include\gui\state\history\inspector_bookmarks_model.h" />
     <ClInclude Include="include\gui\state\history\inspector_history_model.h" />
     <ClInclude Include="include\gui\state\history\inspector_history_types.h" />
@@ -377,6 +380,7 @@
     <ClCompile Include="src\gui\views\sidebar\image_picker.cpp" />
     <ClCompile Include="src\gui\views\sidebar\class_browser.cpp" />
     <ClCompile Include="src\gui\views\sidebar\search_browser.cpp" />
+    <ClCompile Include="src\gui\views\sidebar\methods_browser.cpp" />
     <ClCompile Include="src\gui\views\sidebar\class_label_lookup.cpp" />
     <ClCompile Include="src\gui\views\inspector\inspector_frame.cpp" />
     <ClCompile Include="src\gui\views\inspector\breadcrumb_bar.cpp" />
@@ -458,6 +462,7 @@
     <ClCompile Include="src\gui\state\core\inspector_model.cpp" />
     <ClCompile Include="src\gui\state\runtime\async_loader_set.cpp" />
     <ClCompile Include="src\gui\state\runtime\value_search_loader.cpp" />
+    <ClCompile Include="src\gui\state\runtime\method_search_loader.cpp" />
     <ClCompile Include="src\gui\state\navigation\walker_controller.cpp" />
     <ClCompile Include="src\gui\state\runtime\invoke_request_queue.cpp" />
     <ClCompile Include="src\gui\state\navigation\history_validation.cpp" />
@@ -466,6 +471,7 @@
     <ClCompile Include="src\gui\state\fields\field_watch_model.cpp" />
     <ClCompile Include="src\gui\state\runtime\call_log_model.cpp" />
     <ClCompile Include="src\gui\state\runtime\script_model.cpp" />
+    <ClCompile Include="src\gui\state\runtime\session_persist.cpp" />
     <ClCompile Include="src\gui\state\history\inspector_bookmarks_model.cpp" />
     <ClCompile Include="src\gui\state\history\inspector_history_model.cpp" />
     <ClCompile Include="src\gui\state\history\inspector_history_restore.cpp" />

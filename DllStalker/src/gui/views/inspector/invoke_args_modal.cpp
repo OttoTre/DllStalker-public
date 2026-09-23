@@ -7,6 +7,7 @@
 #include "gui/chrome/ui_theme.h"
 #include "gui/session_state.h"
 #include "dumper/invoke/invoke_param_policy.h"
+#include "types/type_classifier.h"
 
 #include "imgui.h"
 
@@ -110,6 +111,25 @@ void RenderInvokeParamInput(ControlPanelSessionState& state,
                          static_cast<long long>(lits[static_cast<size_t>(currentItem)].value));
             }
         }
+        ImGui::PopID();
+        return;
+    }
+
+    if (support == Support::InlineStruct) {
+        using Cat = Engine::Types::TypeCategory;
+        const Cat cat = Engine::Types::GetCategory(param.typeName);
+        const char* hint = "x, y, ...";
+        switch (cat) {
+        case Cat::VEC2:    hint = "x, y"; break;
+        case Cat::VEC3:    hint = "x, y, z"; break;
+        case Cat::VEC4:    hint = "x, y, z, w"; break;
+        case Cat::QUAT:    hint = "x, y, z, w"; break;
+        case Cat::COLOR:   hint = "r, g, b, a"; break;
+        case Cat::COLOR32: hint = "r, g, b, a (0-255)"; break;
+        case Cat::RECT:    hint = "x, y, width, height"; break;
+        default: break;
+        }
+        ImGui::InputTextWithHint(label, hint, buffer.data(), buffer.size());
         ImGui::PopID();
         return;
     }

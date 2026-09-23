@@ -15,8 +15,9 @@ namespace Engine
 // separate path field — see value_search_nested_leaves.h.
 // Deep Array/List interiors use wildcard-index patterns (container[].member)
 // — see value_search_element_leaves.h.
-// Follow PTR (Deep): nested patterns ptr.field / ptr.arr[].member;
-// unresolved type klass → ptr.* sentinel — see value_search_ptr_follow.h.
+// Follow PTR (Deep): nested patterns ptr.field / a.b.c / ptr.arr[].member
+// (depth kValueSearchMaxPtrFollowDepth); unresolved type klass → ptr.* /
+// a.b.* sentinel — see value_search_ptr_follow.h.
 struct ValueSearchFieldSchema {
     std::string name{};
     std::string type{};

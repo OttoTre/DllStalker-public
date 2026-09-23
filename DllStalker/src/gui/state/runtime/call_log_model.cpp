@@ -157,8 +157,12 @@ bool CallLogModel::IsLogEligible(const Engine::MethodInfo& method) {
         return false;
     }
 
+    // Call Log dumps RCX–R9 only; InlineStruct valuetype-by-ref args are
+    // invokable but not log-eligible (no valuetype-aware dump).
     for (const auto& p : method.paramTypes) {
-        if (Engine::Dumper::ClassifyInvokeParam(p) == Engine::Dumper::InvokeParamSupport::Unsupported) {
+        const auto support = Engine::Dumper::ClassifyInvokeParam(p);
+        if (support == Engine::Dumper::InvokeParamSupport::Unsupported
+            || support == Engine::Dumper::InvokeParamSupport::InlineStruct) {
             return false;
         }
     }

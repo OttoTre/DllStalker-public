@@ -52,22 +52,23 @@ __declspec(noinline) bool SafeMonoCompileMethod(CompileFn fn, void* method,
     }
 }
 
-void EnrichParamEnumMetadata(const UnityModule& module, void* paramType, MethodParam& param) {
+void EnrichTypeEnumMetadata(const UnityModule& module, void* type,
+                            bool& isEnum, void*& enumKlass, std::string& underlyingType) {
     const auto& exp = module.exports;
-    if (!paramType || !exp.fnClassFromType || !exp.fnClassIsEnum || !exp.fnClassEnumBasetype) {
+    if (!type || !exp.fnClassFromType || !exp.fnClassIsEnum || !exp.fnClassEnumBasetype) {
         return;
     }
-    void* klass = exp.fnClassFromType(paramType);
+    void* klass = exp.fnClassFromType(type);
     if (!klass || !exp.fnClassIsEnum(klass)) {
         return;
     }
-    param.isEnum    = true;
-    param.enumKlass = klass;
+    isEnum    = true;
+    enumKlass = klass;
     if (void* baseType = exp.fnClassEnumBasetype(klass)) {
         if (exp.fnTypeGetName) {
             if (const char* baseName = exp.fnTypeGetName(baseType)) {
                 if (baseName[0] != '\0') {
-                    param.underlyingType = baseName;
+                    underlyingType = baseName;
                 }
             }
         }
@@ -87,14 +88,15 @@ MethodParam MakeMethodParam(const UnityModule& module, void* paramType) {
     if (param.typeName.empty()) {
         param.typeName = "Unknown";
     }
-    EnrichParamEnumMetadata(module, paramType, param);
+    EnrichTypeEnumMetadata(module, paramType, param.isEnum, param.enumKlass, param.underlyingType);
     return param;
 }
 
-std::string ResolveReturnTypeName(const UnityModule& module, void* method, void* monoSig) {
+void ResolveReturnType(const UnityModule& module, void* method, void* monoSig, MethodInfo& info) {
     const auto& exp = module.exports;
+    info.returnType = "Unknown";
     if (!exp.fnTypeGetName) {
-        return "Unknown";
+        return;
     }
 
     void* returnType = nullptr;
@@ -114,14 +116,15 @@ std::string ResolveReturnTypeName(const UnityModule& module, void* method, void*
     }
 
     if (!returnType) {
-        return "Unknown";
+        return;
     }
     if (const char* typeName = exp.fnTypeGetName(returnType)) {
         if (typeName[0] != '\0') {
-            return typeName;
+            info.returnType = typeName;
         }
     }
-    return "Unknown";
+    EnrichTypeEnumMetadata(module, returnType,
+                           info.returnIsEnum, info.returnEnumKlass, info.returnUnderlyingType);
 }
 } // namespace
 
@@ -238,13 +241,90 @@ std::vector<MethodInfo> MethodCatalog::GetRawMethods(void* klass) {
         }
 
         info.name       = name ? name : "UNKNOWN_METHOD";
-        info.returnType = ResolveReturnTypeName(m_resolver.module, method, monoSigForReturn);
+        ResolveReturnType(m_resolver.module, method, monoSigForReturn, info);
         info.parameters = std::move(params);
         info.address    = addr; // absolute native VA / Mono JIT ptr (not RVA)
         methods.push_back(std::move(info));
     }
 
     return methods;
+}
+
+std::vector<MethodNameRow> MethodCatalog::EnumerateMethodNames(void* klass, size_t maxPerClass,
+                                                               bool* truncated) {
+    // Names-only index. Must not call GetRawMethods, fnCompileMethod,
+    // SafeMonoCompileMethod, fnIl2cppMethodGetPointer, or param/return
+    // type_get_name enrichment — Mono JIT lives only on the inspector
+    // catalog path (GetRawMethods).
+    if (truncated) {
+        *truncated = false;
+    }
+
+    std::vector<MethodNameRow> rows;
+    if (!klass || !m_resolver.module.exports.fnGetMethods || !m_resolver.module.exports.fnMethodGetName) {
+        return rows;
+    }
+
+    m_resolver.module.EnsureThreadAttached();
+    void* iter   = nullptr;
+    void* method = nullptr;
+
+    constexpr uint32_t kMethodAttrStatic = 0x0010;
+
+    const char* klassName = m_resolver.module.exports.fnClassGetName
+        ? m_resolver.module.exports.fnClassGetName(klass) : nullptr;
+    const char* enginePrefix = m_resolver.module.isIL2CPP ? "il2cpp" : "mono";
+
+    while (true) {
+        if (maxPerClass > 0 && rows.size() >= maxPerClass) {
+            if (truncated) {
+                *truncated = true;
+            }
+            break;
+        }
+
+        unsigned long iterSeh = 0;
+        if (!SafeGetMethodsStep(m_resolver.module.exports.fnGetMethods, klass, &iter, method, iterSeh)) {
+            Engine::Services::BootstrapLog::Write(
+                "[!] %s_class_get_methods SEH 0x%08lX on %s -- stopped after %zu method(s)\n",
+                   enginePrefix, iterSeh,
+                   klassName ? klassName : "?",
+                   rows.size());
+            break;
+        }
+        if (!method) {
+            break;
+        }
+
+        MethodNameRow row{};
+        const char* name = m_resolver.module.exports.fnMethodGetName(method);
+        row.name = name ? name : "UNKNOWN_METHOD";
+
+        if (m_resolver.module.exports.fnMethodGetFlags) {
+            uint32_t implFlags = 0;
+            const uint32_t flags = m_resolver.module.exports.fnMethodGetFlags(method, &implFlags);
+            row.isStatic = (flags & kMethodAttrStatic) != 0;
+        }
+
+        if (m_resolver.module.isIL2CPP) {
+            if (m_resolver.module.exports.fnMethodGetParamCount) {
+                row.paramCount = m_resolver.module.exports.fnMethodGetParamCount(method);
+                row.paramCountKnown = true;
+            }
+        }
+        else if (m_resolver.module.exports.fnMonoMethodSignature
+                 && m_resolver.module.exports.fnMonoSignatureGetParamCount) {
+            if (void* sig = m_resolver.module.exports.fnMonoMethodSignature(method)) {
+                row.paramCount = static_cast<int>(
+                    m_resolver.module.exports.fnMonoSignatureGetParamCount(sig));
+                row.paramCountKnown = true;
+            }
+        }
+
+        rows.push_back(std::move(row));
+    }
+
+    return rows;
 }
 } // namespace Engine::Dumper
 

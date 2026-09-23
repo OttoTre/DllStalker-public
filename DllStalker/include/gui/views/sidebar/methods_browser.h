@@ -11,8 +11,7 @@ struct ControlPanelSessionState;
 
 namespace Gui::Views
 {
-void RenderNavigationStatusBanner(const ControlPanelSessionState& state,
-                                 bool sameLine = false);
+void RenderMethodsBrowser(ControlPanelSessionState& state);
 } // namespace Gui::Views
 
 #endif // ENABLE_DUMPER

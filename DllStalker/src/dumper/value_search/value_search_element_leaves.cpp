@@ -239,7 +239,9 @@ const FieldInfo* ResolveCollectionElementInterior(UnityDumper& dumper,
 
     std::vector<FieldInfo> elements;
     try {
-        elements = dumper.GetCollectionView(*container, kValueSearchMaxCollectionElements);
+        // Resolve/nav: index-aware bound (not Search scan cap of 64) so
+        // hits like items[100] can Drill / open in inspector.
+        elements = dumper.GetCollectionView(*container, index + 1);
     }
     catch (...) {
         return nullptr;
@@ -281,7 +283,8 @@ const FieldInfo* ResolveCollectionElementSlot(UnityDumper& dumper,
     }
     std::vector<FieldInfo> elements;
     try {
-        elements = dumper.GetCollectionView(*container, kValueSearchMaxCollectionElements);
+        // Resolve/nav: index-aware bound (not Search scan cap of 64).
+        elements = dumper.GetCollectionView(*container, index + 1);
     }
     catch (...) {
         return nullptr;

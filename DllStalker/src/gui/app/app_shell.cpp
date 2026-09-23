@@ -12,6 +12,7 @@
 #include "gui/views/sidebar/image_picker.h"
 #include "gui/views/inspector/inspector_frame.h"
 #include "gui/views/sidebar/search_browser.h"
+#include "gui/state/runtime/session_persist.h"
 #include "services/bootstrap_log.h"
 
 #include "imgui.h"
@@ -73,6 +74,13 @@ void TickBeforePaint(ControlPanelSessionState& state) {
             }
             state.pendingDefaultImageSelection = false;
         }
+    }
+
+    if (!state.sessionPersistRebound
+        && !state.loaders.imageLoadInProgress.load()
+        && !state.GetImageCacheSnapshot()->empty()) {
+        State::SessionPersist::Rebind(state);
+        state.sessionPersistRebound = true;
     }
 
     state.TickPresentSideEffects();
@@ -162,7 +170,11 @@ void RenderDumperInitialization(ControlPanelSessionState& state) {
             // shared_ptr (in-flight GetLiveInstances may still be waiting).
             state.CancelInspectorCacheWriters();
             state.ClearInspectorCache();
+            state.CancelImageMethodIndex();
+            state.methodSearch.Invalidate();
             state.dumper = std::make_shared<Engine::UnityDumper>(Engine::Unity);
+            State::SessionPersist::LoadInto(state);
+            state.sessionPersistRebound = false;
             state.ClearImageCache();
             state.StartImageLoad(state.dumper);
             // Re-arm the reconciler so a fresh Init Dumper after the user

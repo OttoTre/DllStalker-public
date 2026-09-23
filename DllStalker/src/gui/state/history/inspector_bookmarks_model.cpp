@@ -3,6 +3,7 @@
 #ifdef ENABLE_DUMPER
 
 #include "gui/state/history/inspector_bookmarks_model.h"
+#include "gui/state/runtime/session_persist.h"
 
 #include <algorithm>
 #include <cctype>
@@ -37,6 +38,7 @@ bool InspectorBookmarksModel::Add(Bookmark entry) {
         nextId = entry.id + 1;
     }
     bookmarks.insert(bookmarks.begin(), std::move(entry));
+    SessionPersist::SaveBookmarks(*this);
     return true;
 }
 
@@ -47,6 +49,7 @@ bool InspectorBookmarksModel::Remove(uint32_t id) {
         return false;
     }
     bookmarks.erase(it);
+    SessionPersist::SaveBookmarks(*this);
     return true;
 }
 
@@ -60,6 +63,7 @@ bool InspectorBookmarksModel::Rename(uint32_t id, const char* newName) {
         return false;
     }
     entry->name = trimmed;
+    SessionPersist::SaveBookmarks(*this);
     return true;
 }
 
@@ -77,6 +81,7 @@ const Bookmark* InspectorBookmarksModel::Find(uint32_t id) const {
 
 void InspectorBookmarksModel::Clear() {
     bookmarks.clear();
+    SessionPersist::SaveBookmarks(*this);
 }
 } // namespace Gui::State
 

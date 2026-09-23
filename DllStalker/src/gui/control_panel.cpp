@@ -115,6 +115,7 @@ void RunControlPanelMainLoop(const Window::ControlPanelWindow& window) {
             || state.transformModel.liveRefresh
             || state.scriptModel.IsRuntimeActive()
             || state.loaders.valueSearchInProgress.load(std::memory_order_relaxed)
+            || state.loaders.methodIndexInProgress.load(std::memory_order_relaxed)
             || classFilterPending;
         // Idle path cannot use INFINITE: soft Quit destroys the game HWND
         // without posting to our panel, so PollHostQuit needs periodic wakes.

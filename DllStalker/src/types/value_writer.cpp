@@ -22,7 +22,34 @@ void SetError(std::string* error, const char* message) {
     if (error) *error = message;
 }
 
-bool ParseFloatList(const std::string& input, size_t expected, std::vector<float>& out, std::string* error) {
+bool WriteFloatComponents(uintptr_t addr, const std::vector<float>& values, std::string* error) {
+    for (size_t i = 0; i < values.size(); ++i) {
+        if (!Memory::TryWriteValue(addr + i * sizeof(float), values[i])) {
+            SetError(error, "Memory write failed (Access Denied)");
+            return false;
+        }
+    }
+    return true;
+}
+
+bool WriteByteComponents(uintptr_t addr, const std::vector<uint8_t>& values, std::string* error) {
+    for (size_t i = 0; i < values.size(); ++i) {
+        if (!Memory::TryWriteValue(addr + i * sizeof(uint8_t), values[i])) {
+            SetError(error, "Memory write failed (Access Denied)");
+            return false;
+        }
+    }
+    return true;
+}
+
+bool WriteInlineFloats(uintptr_t addr, const std::string& input, size_t count, std::string* error) {
+    std::vector<float> values;
+    if (!ParseFloatComponents(input, count, values, error)) return false;
+    return WriteFloatComponents(addr, values, error);
+}
+} // namespace
+
+bool ParseFloatComponents(const std::string& input, size_t expected, std::vector<float>& out, std::string* error) {
     out.clear();
     out.reserve(expected);
 
@@ -58,27 +85,7 @@ bool ParseFloatList(const std::string& input, size_t expected, std::vector<float
     return true;
 }
 
-bool WriteFloatComponents(uintptr_t addr, const std::vector<float>& values, std::string* error) {
-    for (size_t i = 0; i < values.size(); ++i) {
-        if (!Memory::TryWriteValue(addr + i * sizeof(float), values[i])) {
-            SetError(error, "Memory write failed (Access Denied)");
-            return false;
-        }
-    }
-    return true;
-}
-
-bool WriteByteComponents(uintptr_t addr, const std::vector<uint8_t>& values, std::string* error) {
-    for (size_t i = 0; i < values.size(); ++i) {
-        if (!Memory::TryWriteValue(addr + i * sizeof(uint8_t), values[i])) {
-            SetError(error, "Memory write failed (Access Denied)");
-            return false;
-        }
-    }
-    return true;
-}
-
-bool ParseByteList(const std::string& input, size_t expected, std::vector<uint8_t>& out, std::string* error) {
+bool ParseByteComponents(const std::string& input, size_t expected, std::vector<uint8_t>& out, std::string* error) {
     out.clear();
     out.reserve(expected);
 
@@ -113,13 +120,6 @@ bool ParseByteList(const std::string& input, size_t expected, std::vector<uint8_
     }
     return true;
 }
-
-bool WriteInlineFloats(uintptr_t addr, const std::string& input, size_t count, std::string* error) {
-    std::vector<float> values;
-    if (!ParseFloatList(input, count, values, error)) return false;
-    return WriteFloatComponents(addr, values, error);
-}
-} // namespace
 
 bool SetFieldValue(const Engine::FieldInfo& field, const std::string& newValue, std::string* error) {
     if (!field.hasValue || !field.valueAddress) {
@@ -178,7 +178,7 @@ bool SetFieldValue(const Engine::FieldInfo& field, const std::string& newValue, 
         return WriteInlineFloats(field.valueAddress, newValue, 4, error);
     case Cat::COLOR32: {
         std::vector<uint8_t> bytes;
-        if (!ParseByteList(newValue, 4, bytes, error)) return false;
+        if (!ParseByteComponents(newValue, 4, bytes, error)) return false;
         return WriteByteComponents(field.valueAddress, bytes, error);
     }
     default:

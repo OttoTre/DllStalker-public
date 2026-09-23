@@ -40,6 +40,95 @@ void PushUnresolvedPtrSentinel(const ValueSearchFieldSchema& ptrParent,
     out.push_back(std::move(sentinel));
 }
 
+void AppendPtrFollowSchemaLeavesAtDepth(UnityDumper& dumper,
+                                        void* ownerKlass,
+                                        const ValueSearchFieldSchema& ptrParent,
+                                        std::vector<ValueSearchFieldSchema>& out,
+                                        size_t remainingDepth) {
+    if (remainingDepth == 0 || !ownerKlass || !IsFollowablePtrSchemaField(ptrParent)) {
+        return;
+    }
+    const std::string ptrName = ptrParent.name;
+    void* typeKlass = dumper.TryResolveFieldTypeKlass(ownerKlass, ptrName.c_str());
+    if (!typeKlass) {
+        PushUnresolvedPtrSentinel(ptrParent, out);
+        return;
+    }
+
+    std::vector<FieldInfo> raw;
+    bool enumerationComplete = true;
+    try {
+        raw = dumper.GetRawFields(typeKlass, nullptr, &enumerationComplete,
+                                  /*metadataOnly=*/true);
+    }
+    catch (...) {
+        PushUnresolvedPtrSentinel(ptrParent, out);
+        return;
+    }
+    if (!enumerationComplete) {
+        PushUnresolvedPtrSentinel(ptrParent, out);
+        return;
+    }
+
+    for (const auto& field : raw) {
+        if (field.isStatic) {
+            continue;
+        }
+        ValueSearchFieldSchema entry{};
+        entry.name = FormatPtrFollowName(ptrName, field.name);
+        entry.type = field.type;
+        entry.offset = field.offset;
+        entry.isStatic = false;
+        entry.isEnum = field.isEnum;
+        entry.isPtrFollow = true;
+        out.push_back(std::move(entry));
+
+        // Allowlisted Parent.Child under nested object — emit short then prefix.
+        {
+            ValueSearchFieldSchema shortParent{};
+            shortParent.name = field.name;
+            shortParent.type = field.type;
+            shortParent.offset = field.offset;
+            shortParent.isStatic = false;
+            shortParent.isEnum = field.isEnum;
+            const size_t before = out.size();
+            AppendAllowlistedNestedSchemaLeaves(shortParent, out);
+            PrefixSchemaLeafNames(out, before, ptrName);
+        }
+
+        // Deep collection interiors: short container name for klass resolve,
+        // then prefix emitted container[].member → ptr.container[].member.
+        const auto cat = Types::GetCategory(field.type);
+        if (cat == Types::TypeCategory::ARRAY || cat == Types::TypeCategory::LIST) {
+            ValueSearchFieldSchema shortParent{};
+            shortParent.name = field.name;
+            shortParent.type = field.type;
+            shortParent.offset = field.offset;
+            shortParent.isStatic = false;
+            shortParent.isEnum = field.isEnum;
+            const size_t before = out.size();
+            AppendCollectionElementInteriorSchemaLeaves(dumper, typeKlass, shortParent, out);
+            PrefixSchemaLeafNames(out, before, ptrName);
+        }
+
+        // Hop-2: recurse once on nested followable PTR slots (short name +
+        // this nested klass). Prefix after so every new row isPtrFollow.
+        // Do not GetOrBuild nested klass into the schema cache.
+        if (remainingDepth > 1 && IsFollowablePtrField(field)) {
+            ValueSearchFieldSchema shortParent{};
+            shortParent.name = field.name;
+            shortParent.type = field.type;
+            shortParent.offset = field.offset;
+            shortParent.isStatic = false;
+            shortParent.isEnum = field.isEnum;
+            const size_t before = out.size();
+            AppendPtrFollowSchemaLeavesAtDepth(
+                dumper, typeKlass, shortParent, out, remainingDepth - 1);
+            PrefixSchemaLeafNames(out, before, ptrName);
+        }
+    }
+}
+
 // Drill: re-expand container and pick element by "items[3]" (unprefixed nested).
 // (Uses shared ResolveCollectionElementSlot — see value_search_element_leaves.)
 
@@ -48,9 +137,13 @@ const FieldInfo* ResolveNestedSearchField(UnityDumper& dumper,
                                           const std::vector<FieldInfo>& rawFields,
                                           const std::string& fieldName,
                                           FieldInfo& storage) {
-    // No second PTR hop. Nested path only: leaf / arr[i] / arr[i].member.
+    // Same order as ResolveSearchField: allowlisted → PTR follow → interior → slot.
     if (const FieldInfo* nested = ResolveFieldOrNestedLeaf(rawFields, fieldName, storage)) {
         return nested;
+    }
+    if (const FieldInfo* ptrFollow =
+            ResolvePtrFollowField(dumper, nestedKlass, rawFields, fieldName, storage)) {
+        return ptrFollow;
     }
     if (const FieldInfo* interior =
             ResolveCollectionElementInterior(dumper, nestedKlass, rawFields, fieldName, storage)) {
@@ -105,15 +198,16 @@ bool PtrFollowSchemaBelongsTo(const std::string& schemaName,
 }
 
 bool IsPtrFollowUnresolvedSchemaName(const std::string& fieldName) {
-    // "codeLibrary.*" — exactly one trailing ".*" after a plain field name.
+    // Trailing ".*" after a non-empty bracket-free prefix (dots allowed).
+    // "ptr.*" / "a.b.*" true; "a.b[0].*" false.
     if (fieldName.size() < 3 || fieldName[fieldName.size() - 2] != '.'
         || fieldName.back() != '*') {
         return false;
     }
     const std::string ptr = fieldName.substr(0, fieldName.size() - 2);
     return !ptr.empty()
-        && ptr.find('.') == std::string::npos
-        && ptr.find('[') == std::string::npos;
+        && ptr.find('[') == std::string::npos
+        && ptr.find(']') == std::string::npos;
 }
 
 bool IsPtrFollowSchemaName(const std::string& fieldName,
@@ -183,72 +277,8 @@ void AppendPtrFollowSchemaLeaves(UnityDumper& dumper,
                                  void* ownerKlass,
                                  const ValueSearchFieldSchema& ptrParent,
                                  std::vector<ValueSearchFieldSchema>& out) {
-    if (!ownerKlass || !IsFollowablePtrSchemaField(ptrParent)) {
-        return;
-    }
-    const std::string ptrName = ptrParent.name;
-    void* typeKlass = dumper.TryResolveFieldTypeKlass(ownerKlass, ptrName.c_str());
-    if (!typeKlass) {
-        PushUnresolvedPtrSentinel(ptrParent, out);
-        return;
-    }
-
-    std::vector<FieldInfo> raw;
-    bool enumerationComplete = true;
-    try {
-        raw = dumper.GetRawFields(typeKlass, nullptr, &enumerationComplete,
-                                  /*metadataOnly=*/true);
-    }
-    catch (...) {
-        PushUnresolvedPtrSentinel(ptrParent, out);
-        return;
-    }
-    if (!enumerationComplete) {
-        PushUnresolvedPtrSentinel(ptrParent, out);
-        return;
-    }
-
-    for (const auto& field : raw) {
-        if (field.isStatic) {
-            continue;
-        }
-        ValueSearchFieldSchema entry{};
-        entry.name = FormatPtrFollowName(ptrName, field.name);
-        entry.type = field.type;
-        entry.offset = field.offset;
-        entry.isStatic = false;
-        entry.isEnum = field.isEnum;
-        entry.isPtrFollow = true;
-        out.push_back(std::move(entry));
-
-        // Allowlisted Parent.Child under nested object — emit short then prefix.
-        {
-            ValueSearchFieldSchema shortParent{};
-            shortParent.name = field.name;
-            shortParent.type = field.type;
-            shortParent.offset = field.offset;
-            shortParent.isStatic = false;
-            shortParent.isEnum = field.isEnum;
-            const size_t before = out.size();
-            AppendAllowlistedNestedSchemaLeaves(shortParent, out);
-            PrefixSchemaLeafNames(out, before, ptrName);
-        }
-
-        // Deep collection interiors: short container name for klass resolve,
-        // then prefix emitted container[].member → ptr.container[].member.
-        const auto cat = Types::GetCategory(field.type);
-        if (cat == Types::TypeCategory::ARRAY || cat == Types::TypeCategory::LIST) {
-            ValueSearchFieldSchema shortParent{};
-            shortParent.name = field.name;
-            shortParent.type = field.type;
-            shortParent.offset = field.offset;
-            shortParent.isStatic = false;
-            shortParent.isEnum = field.isEnum;
-            const size_t before = out.size();
-            AppendCollectionElementInteriorSchemaLeaves(dumper, typeKlass, shortParent, out);
-            PrefixSchemaLeafNames(out, before, ptrName);
-        }
-    }
+    AppendPtrFollowSchemaLeavesAtDepth(
+        dumper, ownerKlass, ptrParent, out, kValueSearchMaxPtrFollowDepth);
 }
 
 const FieldInfo* ResolvePtrFollowField(UnityDumper& dumper,

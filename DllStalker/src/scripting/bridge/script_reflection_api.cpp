@@ -566,8 +566,52 @@ ScriptInvokeResult ScriptReflectionApi::Invoke(const ScriptInstanceId& scriptId,
                 return status;
             }
 
-            op->invokeResult.value.kind = ScriptValueKind::String;
-            op->invokeResult.value.stringValue = nativeResult.returnDisplay;
+            // Map engine-neutral typedReturn → ScriptValue (field-read honesty).
+            const Engine::InvokeReturnValue& typed = nativeResult.typedReturn;
+            ScriptValue& outValue = op->invokeResult.value;
+            outValue = {};
+            switch (typed.kind) {
+            case Engine::InvokeReturnKind::None:
+            case Engine::InvokeReturnKind::Nil:
+                outValue.kind = ScriptValueKind::Nil;
+                break;
+            case Engine::InvokeReturnKind::Boolean:
+                outValue.kind = ScriptValueKind::Boolean;
+                outValue.booleanValue = typed.booleanValue;
+                break;
+            case Engine::InvokeReturnKind::Integer:
+                outValue.kind = ScriptValueKind::Integer;
+                outValue.integerValue = typed.integerValue;
+                break;
+            case Engine::InvokeReturnKind::Unsigned:
+                outValue.kind = ScriptValueKind::Unsigned;
+                outValue.unsignedValue = typed.unsignedValue;
+                break;
+            case Engine::InvokeReturnKind::Number:
+                outValue.kind = ScriptValueKind::Number;
+                outValue.numberValue = typed.numberValue;
+                break;
+            case Engine::InvokeReturnKind::String:
+                outValue.kind = ScriptValueKind::String;
+                outValue.stringValue = typed.stringValue;
+                break;
+            case Engine::InvokeReturnKind::ObjectPtr: {
+                if (typed.objectPtr == 0) {
+                    outValue.kind = ScriptValueKind::Nil;
+                    break;
+                }
+                void* objectClass = nullptr;
+                dumper_.TryGetClassNameFromInstance(reinterpret_cast<void*>(typed.objectPtr),
+                                                   &objectClass);
+                outValue.kind = ScriptValueKind::Handle;
+                outValue.handleValue = RegisterHandle(scriptId,
+                                                      ScriptHandleKind::Instance,
+                                                      typed.objectPtr,
+                                                      reinterpret_cast<uint64_t>(objectClass));
+                break;
+            }
+            }
+
             op->invokeResult.result = ScriptApiResult::Ok();
             return DS_Status::DS_OK;
         }, kDefaultScriptCommandTimeoutMs, cancel);

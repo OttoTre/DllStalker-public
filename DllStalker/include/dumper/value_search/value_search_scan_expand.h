@@ -4,6 +4,7 @@
 
 #ifdef ENABLE_DUMPER
 
+#include <cstddef>
 #include <stop_token>
 #include <string>
 #include <unordered_set>
@@ -24,7 +25,8 @@ bool SchemaNameAllowIncludesCollection(const FieldInfo& container,
 bool SchemaNameAllowIncludesPtr(const FieldInfo& ptrField,
                                 const std::unordered_set<std::string>& schemaNameAllow,
                                 bool useNameAllow,
-                                bool chipDeep);
+                                bool chipDeep,
+                                const std::string& pathPrefix);
 
 bool TryMatchCollectionElements(UnityDumper& dumper,
                                 const ValueSearchParams& params,
@@ -43,6 +45,8 @@ bool TryMatchPtrFollow(UnityDumper& dumper,
                        const ValueSearchClassSchema* schema,
                        const std::unordered_set<std::string>& schemaNameAllow,
                        bool useNameAllow,
+                       const std::string& pathPrefix,
+                       size_t remainingDepth,
                        std::stop_token stopToken,
                        ValueSearchScanResult& out);
 } // namespace Engine::Dumper

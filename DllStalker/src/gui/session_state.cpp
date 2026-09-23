@@ -22,6 +22,7 @@ void ControlPanelSessionState::BeginShutdown() {
 
     CancelInspectorCacheWriters();
     CancelValueSearch();
+    CancelImageMethodIndex();
 
     // Remaining async loaders not covered by CancelInspectorCacheWriters.
     loaders.imageLoadThread = {};
@@ -43,6 +44,8 @@ void ControlPanelSessionState::ClearImageCache() {
 }
 
 void ControlPanelSessionState::ClearClassCache() {
+    CancelImageMethodIndex();
+    methodSearch.Invalidate();
     classCache.Clear();
     cachedOriginalFilter.clear();
     cachedLowerFilter.clear();
@@ -122,7 +125,9 @@ void ControlPanelSessionState::TickPresentSideEffects() {
     }
 
     const bool topIsCollection = !walker.stack.empty() && walker.stack.back().isCollection;
+    const bool topIsValueTypeSlot = !walker.stack.empty() && walker.stack.back().isValueTypeSlot;
     if (!topIsCollection
+        && !topIsValueTypeSlot
         && !loaders.inspectorLoadInProgress.load()
         && !loaders.instanceSearchInProgress.load()
         && (activeClassPtr != selectedClass || !methodsCatalogLoaded)) {

@@ -20,6 +20,8 @@ struct NavigationSnapshot {
     int   instanceIndex = -1;
     std::vector<InspectorBreadcrumb> breadcrumbs{};
     std::string summaryLabel{};
+    // Walk root `ns::name` for bookmark recipes. History capture may leave this empty.
+    std::string rootClassName{};
 };
 
 // Location-only label for bookmarks (no action prefix). Rebuilds from stored
@@ -59,12 +61,16 @@ inline bool NavigationFingerprintsEqual(const NavigationSnapshot& a, const Navig
         if (a.breadcrumbs[i].isCollection != b.breadcrumbs[i].isCollection) {
             return false;
         }
+        if (a.breadcrumbs[i].isValueTypeSlot != b.breadcrumbs[i].isValueTypeSlot) {
+            return false;
+        }
     }
     return true;
 }
 
 enum class HistoryRestoreResult {
     Applied,
+    AppliedLiveRefind,
     StaleInstance,
     StaleBreadcrumb,
     InvalidEntryKind,

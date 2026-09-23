@@ -356,6 +356,84 @@ void ControlPanelSessionState::StartCollectionLoad(const std::shared_ptr<Engine:
     });
 }
 
+void ControlPanelSessionState::StartValueTypeSlotLoad(const std::shared_ptr<Engine::UnityDumper>& dumperRef,
+                                                      const Engine::FieldInfo& sourceField,
+                                                      void* ownerKlass,
+                                                      void* ownerInstance,
+                                                      void* valueTypeElementKlass,
+                                                      size_t valueTypeIndex) {
+    // Owner-preserving: re-resolve the live slot via wrapper sourceField +
+    // index (GC / List._items may have moved). Never publish the slot as
+    // instanceCandidates and never StartInspectorLoadAtInstance.
+    CancelInspectorCacheWriters();
+    editBufferStore.Clear();
+    enumLiteralCache.Clear();
+    ClearTransformJumpCache();
+    loaders.inspectorLoadInProgress.store(true);
+
+    if (!dumperRef) {
+        loaders.inspectorLoadInProgress.store(false);
+        return;
+    }
+
+    loaders.inspectorLoadThread = std::jthread([this, dumperRef, sourceField,
+                                                ownerKlass, ownerInstance,
+                                                valueTypeElementKlass, valueTypeIndex](std::stop_token stopToken) {
+        Engine::Services::MainThreadDispatcher::TagCurrentThreadAsOurs();
+        try {
+            std::vector<Engine::FieldInfo> memberRows;
+            bool loadOk = false;
+            try {
+                // Bound index+1: do not synthesize the whole list for one slot.
+                auto elementRows = dumperRef->GetCollectionView(sourceField, valueTypeIndex + 1);
+                if (valueTypeIndex < elementRows.size()) {
+                    const Engine::FieldInfo& liveRow = elementRows[valueTypeIndex];
+                    void* const liveSlot = reinterpret_cast<void*>(liveRow.valueAddress);
+                    void* const klass = liveRow.elementKlass
+                        ? liveRow.elementKlass
+                        : valueTypeElementKlass;
+                    if (klass && liveRow.hasValue && liveRow.valueAddress != 0) {
+                        memberRows = dumperRef->GetRawFields(klass, liveSlot);
+                        loadOk = true;
+                    }
+                }
+            }
+            catch (...) {
+                memberRows.clear();
+                loadOk = false;
+            }
+
+            if (stopToken.stop_requested()) {
+                loaders.inspectorLoadInProgress.store(false);
+                return;
+            }
+
+            std::lock_guard<std::mutex> lock(inspector.mutex);
+            inspector.cache.methods.clear();
+            inspector.cache.instanceCandidates.clear();
+            inspector.cache.activeClassPtr          = ownerKlass;
+            inspector.cache.activeInstancePtr       = ownerInstance;
+            inspector.cache.fieldsLoadedForInstance = ownerInstance;
+            if (loadOk) {
+                inspector.cache.fields = std::move(memberRows);
+            }
+            else {
+                inspector.cache.fields.clear();
+            }
+            inspector.NoteCacheMutated();
+        }
+        catch (...) {
+            std::lock_guard<std::mutex> lock(inspector.mutex);
+            inspector.cache.methods.clear();
+            inspector.cache.fields.clear();
+            inspector.cache.instanceCandidates.clear();
+            inspector.NoteCacheMutated();
+        }
+
+        loaders.inspectorLoadInProgress.store(false);
+    });
+}
+
 void ControlPanelSessionState::StartLiveInstanceSearch(const std::shared_ptr<Engine::UnityDumper>& dumperRef, void* selectedClassSnapshot) {
     CancelInspectorCacheWriters();
     loaders.instanceSearchInProgress.store(true);

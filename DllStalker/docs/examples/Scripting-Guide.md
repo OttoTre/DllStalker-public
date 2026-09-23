@@ -51,7 +51,7 @@ All proxy userdata values support:
 |--------|---------|-------------|
 | `:get(fieldName)` | `value` \| `nil, err` | Read a field by name on the live object. |
 | `:set(fieldName, value)` | `true` \| `nil, err` | Write a field by name. |
-| `:invoke(signature, ...)` | `result` \| `nil, err` | Invoke a method; signature must be explicit (e.g. `"Heal(System.Int32)"`). |
+| `:invoke(signature, ...)` | typed `result` \| `nil, err` | Invoke a method; signature must be explicit (e.g. `"Heal(System.Int32)"`). Returns typed Lua values (see limitations). |
 
 ### `ds.types.Instance` (**Curated**)
 
@@ -297,7 +297,7 @@ Common failures include stale handles, dispatcher unavailability, main-thread ca
 Current limitations:
 
 - `:get` and `:set` are instance-only helpers.
-- `:invoke` returns display strings today, not fully typed Lua return values (typed returns deferred — see Product-History).
+- `:invoke` returns typed Lua values matching field-read honesty: `nil` (void/null), boolean, integer/unsigned (I1–I4 / U1–U4), number (float/double), string (managed strings, I8/U8, and inline struct previews), or an Instance handle (object/array/list reference). Arbitrary struct ScriptValues are not typed beyond the string preview.
 - Object-reference field writes are rejected.
 - **Image names:** `find_image` / `find_object` accept bare names or `.dll` suffixes interchangeably (e.g. `Assembly-CSharp` ↔ `Assembly-CSharp.dll`).
 - **Int64 / UInt64 fields and invoke args:** pass **string literals** (e.g. `"9223372036854775807"`), not Lua numbers — doubles lose precision past 2⁵³. Reads already return these as strings.
