@@ -4,7 +4,7 @@
 
 A `version.dll` proxy for inspecting and modifying Unity games at runtime. GUI-enabled builds add reflection tools, live editing, value search, hooks and Lua scripting; Release provides a lightweight hook-only payload.
 
-![DllStalker demo](docs/Snippet.gif)
+![DllStalker demo](DllStalker/docs/Snippet.gif)
 
 ## Why `version.dll`?
 
