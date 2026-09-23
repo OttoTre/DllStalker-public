@@ -29,15 +29,15 @@ sequenceDiagram
 ## Deploy
 
 1. Copy the DLL next to the game `.exe`.
-  1. Take the **DebugRelease|x64** build from [Artifacts](https://github.com/OttoTre/DllStalker-public/releases) or compile it yourself locally (see **Build configs**).
+   1. Take the **DebugRelease|x64** build from [Artifacts](https://github.com/OttoTre/DllStalker-public/releases) or compile it yourself locally (see **Build configs**).
 2. Keep the filename exactly `version.dll`.
 3. Launch the game.
-  1. The Control Panel is included in **DebugRelease** and **Debug**.
+   1. The Control Panel is included in **DebugRelease** and **Debug**.
 4. Built-in plugins (C++ presets) run first. By default no preset is selected — see [Creating a new preset](#creating-a-new-preset).
 5. (Optional) If the Control Panel is enabled:
-  1. It opens as a separate desktop window, not an in-game overlay.
-  2. Click **Init Dumper Engine**. The **System log** on that screen is bootstrap output only; it is not shown after init.
-  3. Closing the control panel does not quit the game.
+   1. It opens as a separate desktop window, not an in-game overlay.
+   2. Click **Init Dumper Engine**. The **System log** on that screen is bootstrap output only; it is not shown after init.
+   3. Closing the control panel does not quit the game.
 
 Runtime files live next to the proxy under `stalker_runtime/` (`mods/` for scripts, `session/` for bookmark and watch recipes). **Release** also writes `stalker_runtime/dllstalker.log`.
 
@@ -117,9 +117,9 @@ The **Scripting** dock runs LuaJIT packages from `stalker_runtime/mods` next to 
 
 | File | Purpose |
 |------|---------|
-| [`docs/examples/README.md`](docs/examples/README.md) | Script packages: getting started and links |
-| [`docs/examples/Scripting-Guide.md`](docs/examples/Scripting-Guide.md) | Lua API, profiles, Curated ABI |
-| [`docs/examples/Manifest-Schema.md`](docs/examples/Manifest-Schema.md) | Manifest fields and defaults |
+| [`README.md`](DllStalker/docs/examples/README.md) | Script packages: getting started and links |
+| [`Scripting-Guide.md`](DllStalker/docs/examples/Scripting-Guide.md) | Lua API, profiles, Curated ABI |
+| [`Manifest-Schema.md`](DllStalker/docs/examples/Manifest-Schema.md) | Manifest fields and defaults |
 
 ## ⚠️ Important Disclaimer & Legal Notice
 
